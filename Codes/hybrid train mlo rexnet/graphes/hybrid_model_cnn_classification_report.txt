@@ -1,0 +1,10 @@
+              precision    recall  f1-score   support
+
+   DENSITY A       0.00      0.00      0.00        20
+   DENSITY B       0.74      0.23      0.36       380
+   DENSITY C       0.88      0.83      0.85      3060
+   DENSITY D       0.45      0.81      0.58       540
+
+    accuracy                           0.77      4000
+   macro avg       0.52      0.47      0.45      4000
+weighted avg       0.80      0.77      0.76      4000

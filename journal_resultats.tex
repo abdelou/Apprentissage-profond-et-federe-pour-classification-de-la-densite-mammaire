@@ -1,0 +1,3204 @@
+\documentclass[12pt,a4paper]{report}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{array}
+\usepackage{xltabular}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\definecolor{bleu}{rgb}{0,0,1}
+\usepackage{url}
+\setlength{\parskip}{1em}
+\setlength{\parindent}{0em}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\onehalfspacing
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows, positioning, arrows.meta}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage[normalem]{ulem}
+\usepackage[pdfborder={0 0 1}]{hyperref}
+\usepackage{subcaption}
+
+\newcommand{\encours}[1]{\textcolor{red}{\textbf{[EN COURS -- #1]}}}
+\newcommand{\todo}[1]{\textcolor{orange}{\textit{[À COMPLÉTER : #1]}}}
+
+\begin{document}
+
+\begin{titlepage}
+\vspace*{0.95cm}
+\begin{center}
+\textnormal{\textbf{Université de Mons}}\\[0.3em]
+\textnormal{\textbf{Faculté des Sciences}}\\[0.3em]
+\textnormal{\textbf{Département d'Informatique}}\\[0.3em]
+\textnormal{\textbf{Finalité spécialisée en Artificial Intelligence and Data Analytics}}\\[0.3em]
+\end{center}
+\vspace*{3cm}
+\centering
+
+{\Large \textbf{Apprentissage profond et fédéré pour la classification de la
+densité mammaire pour la prédiction du cancer du sein.}}\\[0.3cm]
+{\large Construire un modèle capable de classer automatiquement la densité
+mammaire selon BI-RADS à partir d'images mammographiques}\\[2cm]
+
+\begin{tabular}{@{} l l @{}}
+\textbf{Étudiant :} & ALLA Abdelouahad \\
+\textbf{Maître de mémoire :} & Xavier Lessage, \textbf{CETIC} \\
+\textbf{Directeur de mémoire :} & MAHMOUDI Saïd, \textbf{UMONS} \\
+\end{tabular}
+
+\textit{Année académique 2025--2026}
+
+\vfill
+
+\noindent
+\includegraphics[height=1.8cm]{image/UMONS-Logo1.jpg}
+\hfill
+\includegraphics[height=1.8cm]{image/FS-Logo.jpg}
+\hfill
+\includegraphics[height=1.8cm]{image/FPMS-Logo.jpg}
+
+\end{titlepage}
+
+\chapter*{Remerciements}
+\addcontentsline{toc}{chapter}{Remerciements}
+
+Je tiens à exprimer ma profonde gratitude à mon maître de mémoire, M.
+Xavier Lessage (CETIC), pour son suivi régulier tout au long de ce travail.
+Son orientation, son soutien et ses encouragements ont été cruciaux pour
+l'aboutissement de ce travail, et nos échanges réguliers ont permis de
+garder une cohérence scientifique tout au long des expérimentations, en
+orientant certains choix méthodologiques abordés dans ce mémoire.
+
+Je tiens également à adresser mes sincères remerciements à mon directeur
+de mémoire, le professeur Saïd Mahmoudi (UMONS), pour ses retours et sa
+disponibilité.
+
+\tableofcontents
+
+% ============================================================================
+\chapter*{Introduction}
+\addcontentsline{toc}{chapter}{Introduction}
+
+Le cancer du sein touche encore aujourd'hui énormément de femmes à travers
+le monde, et reste un problème de santé publique majeur. Les traitements se
+sont beaucoup améliorés ces dernières décennies. Mais ce qui pèse le plus
+sur les chances de guérison reste le moment du diagnostic : plus une tumeur
+est repérée tôt, plus les traitements ont des chances d'être efficaces.
+
+Le dépistage repose aujourd'hui surtout sur la mammographie. Cet examen
+n'offre pourtant pas la même fiabilité selon les patientes, à cause de la
+composition du tissu mammaire. Chez certaines femmes, le sein contient
+beaucoup de tissu fibreux et glandulaire -- on parle alors de sein
+\emph{dense} -- qui apparaît en blanc sur le cliché, exactement comme les
+lésions suspectes. Cette ressemblance visuelle peut littéralement cacher une
+tumeur au milieu d'un tissu sain, et cela touche justement les patientes les
+plus à risque : une densité élevée augmente elle-même les chances de
+développer un cancer.
+
+Pour limiter cette part de subjectivité, le système BI-RADS classe la
+densité mammaire en quatre catégories, d'un sein presque entièrement
+graisseux à un sein extrêmement dense. Ce classement reste néanmoins établi
+à l'œil par le radiologue. Il existe donc une variabilité d'un praticien à
+l'autre, et parfois même d'un examen à l'autre pour la même patiente.
+
+C'est cette limite que ce mémoire cherche à dépasser, en s'appuyant sur
+l'apprentissage profond pour estimer la densité mammaire de façon
+automatique et reproductible, sans dépendre du jugement d'un seul
+observateur. Le sujet impose aussi d'explorer une seconde dimension, liée
+aux contraintes réelles du monde hospitalier : la confidentialité des
+données médicales. C'est le rôle de l'apprentissage fédéré, qui permet en
+principe d'entraîner un modèle sur plusieurs sources de données sans jamais
+centraliser les images elles-mêmes.
+
+Conformément au titre de ce mémoire, \emph{Apprentissage profond et fédéré
+pour la classification de la densité mammaire pour la prédiction du cancer
+du sein}, le travail se structure en deux grands axes. Le premier, présenté
+aux Chapitres~\ref{sec:etat-art-positionnement} et~\ref{ch:approches},
+regroupe les architectures d'apprentissage profond (Vision Transformer,
+CNN, fusions multi-branches) entraînées de façon classique et centralisée
+sur VinDr-Mammo. Le second, présenté au Chapitre~\ref{sec:federe}, explore
+l'apprentissage fédéré (FedAvg) entre deux sources de données distinctes
+(VinDr-Mammo et DDSM/CBIS-DDSM), sans jamais centraliser les images
+elles-mêmes -- une contrainte réaliste pour des données médicales, où le
+partage direct entre institutions se heurte à des obligations de
+confidentialité.
+
+Le chapitre suivant situe d'abord ce travail par rapport à la littérature
+existante (Chapitre~\ref{sec:etat-art-positionnement}). Le détail de chaque
+approche testée, avec ses résultats propres, vient ensuite
+(Chapitre~\ref{ch:approches}), suivi de l'apprentissage fédéré
+(Chapitre~\ref{sec:federe}) et de l'analyse d'interprétabilité du modèle
+retenu.
+
+% ============================================================================
+\chapter{Contexte médical et classification de la densité mammaire}
+\label{ch:contexte-medical}
+
+\section{Rappel sur le cancer du sein}
+
+Le cancer du sein correspond à une prolifération incontrôlée de cellules qui
+se trouvaient initialement dans la glande mammaire. Sans traitement, cette
+prolifération peut dépasser son site d'origine, envahir les tissus voisins,
+puis atteindre des organes distants par voie sanguine ou lymphatique, sous
+forme de métastases. On distingue classiquement les tumeurs
+\textbf{bénignes}, qui restent localisées et sans danger immédiat, des
+tumeurs \textbf{malignes}, capables de cette évolution invasive.
+
+\subsection{Organisation générale du sein}
+
+Le sein est un organe pair, situé à l'avant du thorax et posé sur le muscle
+pectoral qui lui sert de support~\cite{ref5}. Il associe trois types de
+tissus : la glande mammaire elle-même, un stroma de soutien fait de tissu
+conjonctif, et une composante graisseuse dont la proportion varie fortement
+d'une femme à l'autre. Le tout est recouvert par la peau.
+
+Sur le plan fonctionnel, la glande se structure en 15 à 20 \textbf{lobes},
+eux-mêmes divisés en 20 à 40 \textbf{lobules} : ce sont les unités qui
+produisent le lait pendant l'allaitement. Chaque lobule se draine dans un
+réseau de \textbf{canaux galactophores}, qui achemine le lait vers le
+mamelon. C'est justement le long de ce réseau que naissent le plus souvent
+les cancers du sein, d'où la fréquence des carcinomes dits canalaires par
+rapport aux formes lobulaires.
+
+La Figure~\ref{fig:anatomie_sein} reprend ces structures sous forme de
+coupe.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.70\textwidth]{image/anatomie_sein_.png}
+    \caption{Coupe schématique du sein : (\textcolor{blue}{1})~paroi
+    thoracique, (\textcolor{blue}{2})~muscle pectoral,
+    (\textcolor{blue}{3})~lobules, (\textcolor{blue}{4})~lobes,
+    (\textcolor{blue}{5})~mamelon, (\textcolor{blue}{6})~aréole,
+    (\textcolor{blue}{7})~canal galactophore, (\textcolor{blue}{8})~tissu
+    adipeux, (\textcolor{blue}{9})~tissu conjonctif~\cite{ref16}.}
+    \label{fig:anatomie_sein}
+\end{figure}
+
+\subsection{Origine et types de tumeurs mammaires}
+
+Un cancer du sein se développe presque toujours à partir de l'un de ces deux
+compartiments : les lobules ou les canaux galactophores~\cite{ref6}. Quand
+les cellules anormales restent confinées à leur tissu d'origine, on parle de
+tumeur \textbf{in situ} (la membrane basale n'est pas franchie). Quand elles
+envahissent le tissu environnant, avec un risque de dissémination à
+distance, on parle de tumeur \textbf{invasive}. En croisant cette
+distinction avec le site d'origine, on obtient les quatre présentations
+cliniques usuelles : carcinome canalaire in situ, carcinome canalaire
+invasif, carcinome lobulaire in situ et carcinome lobulaire invasif. Cette
+classification conditionne directement le pronostic et le choix
+thérapeutique, comme le résume la Figure~\ref{fig:stades_cancer}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.90\textwidth]{image/stades_cancer.png}
+    \caption{Les quatre présentations principales du cancer du sein selon
+    leur localisation d'origine (canalaire ou lobulaire) et leur caractère
+    in situ ou invasif~\cite{ref16}.}
+    \label{fig:stades_cancer}
+\end{figure}
+
+\section{La densité mammaire}
+
+\subsection{Ce que mesure la densité}
+
+Contrairement à ce que son nom pourrait laisser penser, la densité mammaire
+ne décrit pas une sensation au toucher, mais un contraste visuel observé sur
+la mammographie~\cite{ref2}. Le tissu adipeux, radiotransparent, apparaît
+sombre sur le cliché. Le tissu fibreux et glandulaire, lui, est
+radio-opaque et apparaît clair~\cite{ref1}. La densité mammaire correspond
+donc à la proportion de ce second type de tissu par rapport au premier.
+
+Cette proportion compte pour deux raisons. D'une part, une lésion cancéreuse
+apparaît elle aussi en blanc sur la mammographie : plus le tissu environnant
+est dense, plus il devient difficile de distinguer une anomalie réelle du
+bruit visuel ambiant. C'est cet effet de masquage qui réduit la sensibilité
+du dépistage~\cite{ref3}. D'autre part, une densité élevée est associée à un
+risque accru de cancer du sein, indépendamment de cet effet de masquage --
+même si les mécanismes biologiques précis restent débattus dans la
+littérature~\cite{ref2, ref4}.
+
+\subsection{La classification BI-RADS}
+
+Pour que cette évaluation ne dépende pas entièrement du jugement individuel
+de chaque radiologue, l'American College of Radiology a défini un cadre de
+référence, le \emph{Breast Imaging Reporting and Data System} (BI-RADS), qui
+répartit la densité mammaire en quatre catégories~\cite{ref16} :
+
+\begin{itemize}
+    \item \textbf{Catégorie A (ACR1) -- sein presque entièrement adipeux :}
+    la composante fibroglandulaire ne dépasse pas 25\,\%. Le contraste
+    radiologique est excellent, ce qui rend la détection d'anomalies
+    particulièrement fiable.
+    \item \textbf{Catégorie B (ACR2) -- densité fibroglandulaire éparse :}
+    entre 25\,\% et 50\,\% de tissu dense, réparti de façon discontinue sur
+    un fond globalement clair. La sensibilité de l'examen reste bonne.
+    \item \textbf{Catégorie C (ACR3) -- sein hétérogène dense :} entre
+    50\,\% et 75\,\% de tissu dense. L'interprétation devient plus délicate
+    car certaines petites lésions peuvent se confondre avec le tissu
+    environnant.
+    \item \textbf{Catégorie D (ACR4) -- sein extrêmement dense :} plus de
+    75\,\% de tissu dense. C'est la configuration la plus difficile à lire
+    pour le radiologue, et paradoxalement celle où le risque intrinsèque de
+    cancer est le plus élevé.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.22\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{image/acr1-a.png}
+        \caption*{ACR 1 (A)}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.22\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{image/acr2-b.png}
+        \caption*{ACR 2 (B)}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.22\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{image/acr3-c.png}
+        \caption*{ACR 3 (C)}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.22\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{image/acr4-d.png}
+        \caption*{ACR 4 (D)}
+    \end{subfigure}
+    \caption{Exemple des quatre catégories de densité BI-RADS, illustré à
+    partir d'images réelles du jeu de données VinDr-Mammo utilisé dans ce
+    mémoire.}
+    \label{fig:birads_categories}
+\end{figure}
+
+Cette dépendance à l'interprétation visuelle du radiologue, et la
+variabilité inter- et intra-observateur qu'elle entraîne, est précisément ce
+que ce mémoire propose de dépasser. L'idée est de s'appuyer sur
+l'apprentissage profond pour produire une estimation automatique,
+reproductible et indépendante de l'observateur.
+
+% ============================================================================
+\chapter{Positionnement par rapport à l'état de l'art}
+\label{sec:etat-art-positionnement}
+
+Définition et enjeux. Le sein est composé de trois types de tissus :
+adipeux, glandulaire et fibreux ; la proportion de ces tissus détermine la
+densité mammaire. Les tissus denses (glandulaires et fibreux) apparaissent
+en blanc sur les mammographies, tandis que les tissus adipeux, plus
+sombres, traduisent une faible densité. Une densité élevée constitue un
+enjeu clinique majeur : elle peut masquer des lésions (difficulté de
+diagnostic) et constitue un facteur de risque reconnu du cancer du sein.
+Au-delà de la classification en elle-même, cet enjeu s'inscrit directement
+dans l'objectif plus large de ce mémoire : une estimation fiable et
+automatique de la densité contribue à la prédiction du risque de cancer du
+sein, la densité étant elle-même un facteur de risque indépendant reconnu
+dans la littérature~\cite{ref2, ref4}. C'est cette double perspective --
+classification et évaluation du risque -- qui structure la revue de
+littérature qui suit.
+
+\section{Apprentissage fédéré en imagerie médicale}
+\label{sec:etat-art-federe}
+
+Le second axe de ce mémoire -- l'apprentissage fédéré -- répond à une
+contrainte spécifique au monde médical que les méthodes de classification
+présentées dans la suite de ce chapitre ne traitent pas : la plupart des
+jeux de données utilisés dans la littérature (y compris VinDr-Mammo dans ce
+travail) proviennent d'un nombre restreint de cohortes déjà centralisées,
+alors qu'en pratique les données médicales réelles restent réparties entre
+institutions, pour des raisons légales et éthiques de confidentialité
+\cite{ref_rieke_fl_digital_health}. L'algorithme FedAvg de McMahan et al.\
+\cite{ref_fedavg}, déjà présenté en détail au Chapitre~\ref{sec:federe},
+propose une réponse technique à ce problème : entraîner un modèle
+collaboratif sans jamais centraliser les images elles-mêmes, seuls les
+poids des modèles locaux étant échangés.
+
+Plusieurs travaux ont depuis appliqué ce principe à l'imagerie médicale.
+Sheller et al.\ \cite{ref_sheller_fl_brain} démontrent la faisabilité d'un
+entraînement fédéré multi-institutionnel pour la segmentation de tumeurs
+cérébrales, sans qu'aucun hôpital participant n'ait besoin de partager ses
+données brutes avec les autres. Kaissis et al.\
+\cite{ref_kaissis_fl_privacy} passent en revue les enjeux de sécurité et de
+confidentialité propres à l'apprentissage fédéré appliqué à l'image
+médicale, un point directement pertinent pour la motivation de ce mémoire.
+Plus proche encore de notre sujet précis, Roth et al.\
+\cite{ref_roth_fl_breast_density} rapportent une implémentation réelle
+d'apprentissage fédéré pour la classification de la densité mammaire entre
+plusieurs institutions hospitalières -- c'est le précédent le plus direct
+pour l'expérimentation FedAvg menée dans ce mémoire (Chapitre~\ref{sec:federe}),
+à la différence près que leur déploiement s'appuie sur de vrais serveurs
+distincts par institution, alors que notre implémentation reste une
+simulation sur une seule machine (voir la précision méthodologique de la
+Section~\ref{sec:federe}).
+
+\section{Méthodes classiquee}
+
+Avant que le Deep Learning ne s'impose, la détermination de la densité
+mammaire s'appuyait surtout sur des descripteurs statistiques et texturaux,
+combinés à des algorithmes de classification supervisée. On peut notamment
+citer :\\
+\begin{itemize}
+    \item \textbf{L'utilisation de réseaux de neurones artificiels appliqués aux histogrammes :} cette technique classe directement le niveau de densité à partir de la répartition des niveaux de gris, sans étape de segmentation. Elle atteint un taux de précision avoisinant les 87\,\%.
+\item \textbf{La segmentation par Fuzzy C-Means associée à une combinaison bayésienne :} cette méthode distingue les régions denses des zones adipeuses, avant d'appliquer des modèles de classification hybrides (kNN, arbres de décision), dont les résultats sont comparés aux jugements d'experts radiologues.
+\item \textbf{La segmentation topographique couplée à l'algorithme kNN :} cette approche repose sur une représentation morphologique hiérarchisée du sein, ce qui permet de repérer les zones à forte densité avec une bonne fiabilité.
+\end{itemize}
+Ces techniques ont l'avantage d'être simples et interprétables. Elles
+souffrent cependant de plusieurs faiblesses : une forte dépendance à la
+qualité des images, une difficulté à représenter les relations spatiales
+complexes, et des performances qui s'essoufflent sur de grands jeux de
+données. C'est pour ces raisons qu'elles ont progressivement cédé la place
+aux méthodes d'apprentissage profond, capables d'extraire seules des
+représentations hiérarchiques directement à partir des données brutes.
+
+\section{Méthodes par Deep Learning et hybrides}
+Les architectures profondes, en particulier les CNN et les Transformers,
+ont changé la façon d'aborder la classification de la densité mammaire.
+
+\subsection{CNN et approches hiérarchiques}
+
+Plusieurs travaux organisent la classification en étapes successives plutôt
+qu'en un seul classifieur direct. Trace4BDensity \cite{trace4bdensity}
+enchaîne trois réseaux ResNet-50 en cascade -- d'abord tissu dense A/B
+contre C/D, puis A contre B, puis C contre D -- pour atteindre 89\,\%
+d'exactitude. Kumar et al. \cite{ref22} combinent de leur côté un ensemble
+de classifieurs neuronaux hiérarchiques et des descripteurs de texture GLCM,
+ce qui fait progresser le taux de réussite de 79,5\,\% à 90,8\,\%. Cette
+logique de décision par étapes, plus proche du raisonnement clinique par
+élimination, est directement celle que nous reprenons avec notre
+architecture de classification hiérarchique en cascade (Approche 7, voir
+Section~\ref{sec:correspondance}).
+
+\subsection{Segmentation et modèles hybrides}
+
+D'autres approches passent par une étape de segmentation explicite avant la
+classification. Grâce à leurs convolutions dilatées et à leurs mécanismes
+multi-échelles, les architectures DeepLabV3 et U-Net permettent de délimiter
+plus précisément les régions denses du tissu mammaire. La méthode par
+segmentation cGAN de Ramirez et al. \cite{ref18} va plus loin en chaînant
+segmentation et classification dans un seul pipeline end-to-end, ce qui
+améliore à la fois la précision (98\,\%) et l'explicabilité du résultat.
+
+\subsection{Transformers et architectures récentes}
+
+L'arrivée des Transformers en vision (ViT, Swin) a introduit un mécanisme
+d'attention capable de capturer des relations globales dans l'image, en
+complément des filtres convolutifs qui restent, eux, des détecteurs
+essentiellement locaux :
+\begin{itemize}
+    \item \textbf{MammoViT} \cite{ref19} associe ResNet50 et ViT et atteint
+    97,4\,\% en combinant caractéristiques locales et contexte global --
+    l'architecture qui a directement inspiré notre Approche 2 (fusion
+    ViT/ResNet50, voir Figure~\ref{fig:mammovit_architecture}) ;
+    \item le \textbf{Swin Transformer} \cite{ref20}, à attention
+    hiérarchique, atteint 74,9\,\% sur une classification à 4 classes
+    BI-RADS -- un score nettement plus proche des nôtres que les résultats
+    binaires évoqués plus haut, ce qui confirme que l'écart vient surtout du
+    passage au multi-classe (voir Section~\ref{sec:ecart-litterature}
+    ci-dessous) ;
+    \item des modèles multi-vues comme MaMVT exploitent conjointement les
+    incidences CC et MLO via une attention croisée entre les deux vues, une
+    idée que l'on retrouve -- sous une forme plus simple, par fusion de
+    caractéristiques plutôt que par attention croisée -- dans notre
+    Approche 6.
+    
+\end{itemize}
+\begin{figure}[H]
+    \centering
+     \includegraphics[width=0.75\textwidth]{image/MammoViT_model.png}
+    \caption{Architecture MammoViT, reprise de l'état de l'art -- référence
+    directe pour notre Approche 2.}
+    \label{fig:mammovit_architecture}
+\end{figure}
+\subsection{Écart avec les meilleurs résultats publiés}
+\label{sec:ecart-litterature}
+
+Nos meilleurs résultats se situent actuellement entre 73\,\% et 87\,\%
+selon l'approche. Plusieurs travaux de la littérature annoncent pourtant des
+scores nettement supérieurs : MammoViT \cite{ref19} rapporte 97,4\,\% de
+précision grâce à la fusion des caractéristiques locales et globales,
+l'approche par segmentation cGAN de Ramirez et al. \cite{ref18} annonce
+98\,\%, et l'ensemble de classifieurs neuronaux de Kumar et al.
+\cite{ref22} atteint 90,8\,\%. Plutôt que de voir cet écart comme un échec,
+il vaut mieux le décomposer :
+\begin{itemize}
+    \item \textbf{Le jeu de données diffère} : contrairement à nous, une
+    partie de ces travaux s'appuient sur des cohortes cliniques privées déjà
+    nettoyées et annotées par un consensus de radiologues (Lehman et al.
+    \cite{ref13}, Ho et al. \cite{ref3}), ou sur des versions retravaillées
+    de DDSM. Nous entraînons directement sur VinDr-Mammo brut, sans
+    curation manuelle préalable, ce qui expose davantage le modèle au bruit
+    d'annotation et au déséquilibre naturel des classes.
+    \item \textbf{La tâche n'est pas toujours identique} : plusieurs de ces
+    scores élevés concernent une classification \emph{binaire}
+    (dense / non dense), une tâche structurellement plus facile que notre
+    classification à 4 classes ACR. Le tableau comparatif
+    (Table~\ref{tab:comparatif_deep_learning} de l'état de l'art) le montre
+    bien : dès qu'on repasse en multi-classe, les scores se rapprochent
+    davantage des nôtres.
+    \item \textbf{L'architecture exacte n'est pas toujours reproductible} :
+    les hyperparamètres précis, le prétraitement, et parfois l'architecture
+    elle-même ne sont pas entièrement décrits dans les publications.
+\end{itemize}
+
+\subsection{Synthèse et conclusion}
+
+Les méthodes de Deep Learning surpassent les
+approches classiques en précision, en robustesse et en capacité
+d'interprétation. Ce sont aujourd'hui les architectures hybrides
+CNN/Transformer, ainsi que les modèles multi-vues, qui définissent l'état de
+l'art de la classification de la densité mammaire, en combinant analyse de
+texture locale, compréhension contextuelle globale et explicabilité
+clinique. C'est cette littérature qui a guidé la construction de notre
+propre pipeline expérimental, structuré autour des grandes familles
+d'architectures suivantes :
+\begin{itemize}
+    \item extraction de caractéristiques par Vision Transformer,
+    \item fine-tuning direct de backbones profonds,
+    \item classification hiérarchique,
+    \item fusion d'attributs texturaux -- histogramme et GLCM,
+    \item comparaison de backbones CNN légers (RexNet150 face à ResNet50 et
+    DenseNet121),
+    \item intégration d'une approche multi-vue CC/MLO.
+\end{itemize}
+
+\section{Correspondance entre nos approches et la littérature}
+\label{sec:correspondance}
+
+Chacune des architectures explorées dans ce mémoire s'appuie directement sur
+un ou plusieurs travaux cités :
+
+\begin{itemize}
+    \item \textbf{Approche 2 (ViT + ResNet50)} reprend le principe hybride
+    convolution/attention de MammoViT \cite{ref19}
+    (Figure~\ref{fig:mammovit_architecture}), qui combine un extracteur
+    ResNet-50 pour les motifs locaux et un Vision Transformer pour le
+    contexte global du tissu.
+    \item \textbf{Approches 3, 4 et 5 (fusion image + histogramme / GLCM)}
+    prolongent la logique des descripteurs texturaux classiques (GLCM
+    \cite{ref22}, histogrammes \cite{ref10}) en les combinant à une branche
+    convolutive profonde plutôt que de les utiliser seuls.
+    \item \textbf{Approche 6 (architectures à double branche)} s'inspire à
+    la fois de la comparaison multi-backbone de Pereira et al. \cite{ref9}
+    (ResNet50/DenseNet, voir nos variantes \emph{fusion même-vue}) et
+    de l'argument clinique de complémentarité CC/MLO détaillé dans notre
+    état de l'art (Figures~\ref{fig:vue_mlo_journal} et
+    \ref{fig:vue_cc_journal}) : certaines lésions ne sont visibles que sur
+    une seule des deux incidences, ce qui justifie la fusion plutôt que le
+    choix d'une vue unique.
+    \item \textbf{L'idée de classification hiérarchique / en cascade}
+    reprend directement le principe de
+    Trace4BDensity \cite{trace4bdensity} (trois classifieurs en cascade
+    imitant le raisonnement par élimination du radiologue).
+    \item \textbf{L'apprentissage fédéré} (Section~\ref{sec:federe})
+    répond directement à la contrainte de souveraineté et de
+    confidentialité des données médicales identifiée en
+    Section~\ref{sec:etat-art-federe} : la plupart des travaux cités
+    ci-dessus s'appuient sur une cohorte déjà centralisée, alors qu'en
+    pratique les données médicales réelles restent réparties entre
+    institutions et ne peuvent pas être regroupées librement, ce qui
+    motive une approche par apprentissage fédéré plutôt que centralisé.
+\end{itemize}
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\textwidth]{image/médiolatérale.png}
+
+    \caption{Vue oblique médio-latérale (MLO), reprise de l'état de l'art
+    pour rappel du contexte anatomique justifiant l'Approche 6.}
+    \label{fig:vue_mlo_journal}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+     \includegraphics[width=0.65\textwidth]{image/pectoralis.png}
+    \caption{Complémentarité des vues CC et MLO, reprise de l'état de l'art.}
+    \label{fig:vue_cc_journal}
+\end{figure}
+
+
+
+% ============================================================================
+\chapter{Résultats expérimentaux par approche}
+\label{ch:approches}
+
+\section{Cadre méthodologique}
+
+\subsection{Contraintes et ressources}
+
+Le projet s'est déroulé dans un cadre de recherche appliquée soumis à
+plusieurs contraintes :
+\begin{itemize}
+    \item \textbf{Techniques} : manipulation d'images médicales volumineuses
+    au format DICOM, anonymisation stricte, et usage exclusif d'outils open
+    source ;
+    \item \textbf{Matérielles} : serveur GPU (4 cartes de 3\,Go) de la
+    Faculté Polytechnique de Mons ;
+    \item \textbf{Encadrement} : supervision de M. Xavier Lessage, maître de
+    mémoire, avec des échanges réguliers avec le professeur Saïd Mahmoudi.
+\end{itemize}
+
+\subsection{Méthodologie et outils}
+
+Le travail a suivi une approche itérative et expérimentale, alternant
+conception, entraînement et validation de modèles. Les outils principaux
+utilisés étaient :
+\begin{itemize}
+    \item \textbf{Langages et frameworks} : Python, PyTorch, timm,
+    Transformers (Hugging Face), OpenCV, Scikit-image, Scikit-learn,
+    Pydicom, Matplotlib/Seaborn ;
+    \item \textbf{Suivi et documentation} : GitHub et Overleaf ;
+    \item \textbf{Réduction de dimension} : extraction de caractéristiques
+    par backbone (vecteurs 768D pour ViT, 2048D pour ResNet50), descripteurs
+    statistiques compacts (histogramme 256D, GLCM à 5 valeurs), et t-SNE
+    pour la projection de l'espace latent en 2D ;
+    \item \textbf{Évaluation} : accuracy, F1-score, matrice de confusion, et
+    analyse comparative.
+\end{itemize}
+
+\section{Prétraitement et augmentation des données}
+\label{sec:augmentation}
+
+VinDr-Mammo présente un déséquilibre de classe très marqué. La classe
+Density C (tissu dense hétérogène) représente à elle seule plus des trois
+quarts des images, alors que Density A (tissu presque entièrement adipeux)
+en représente moins de 0,5\,\%. Un entraînement direct sur cette
+distribution conduirait le modèle à ignorer purement et simplement les
+classes minoritaires -- c'est d'ailleurs ce qu'on observe dans plusieurs de
+nos résultats (voir par exemple Section~\ref{sec:test-seuil-a}). Une
+stratégie d'augmentation ciblée sur les classes minoritaires a donc été
+mise en place dans l'ensemble des scripts d'entraînement du projet.
+
+\subsection{Vérification préalable : cohérence gauche/droite}
+
+Avant d'appliquer une augmentation quelconque, il fallait s'assurer qu'elle
+ne risquait pas d'introduire une incohérence d'étiquetage. Une vérification
+a donc été menée sur l'ensemble des études de VinDr-Mammo : pour une même
+patiente (même \texttt{study\_id}), la densité mammaire annotée est-elle la
+même sur toutes les images, les deux vues CC et MLO comprises ? Le résultat
+confirme une cohérence quasi totale : \textbf{4968 études sur 5000
+(99,4\,\%)} présentent une densité identique sur l'ensemble de leurs
+images. Cette cohérence permet d'appliquer des transformations géométriques
+et photométriques sur les images sans risque de mélanger des étiquettes
+contradictoires.
+
+\subsection{Transformations appliquées}
+
+Les transformations appliquées visent à augmenter la diversité tout en
+respectant l'anatomie mammaire :
+\begin{itemize}
+    \item rotation légère ($\pm15^{\circ}$) pour simuler les variations
+    d'orientation lors de l'acquisition ;
+    \item retournement horizontal ($p=0{,}5$) pour augmenter la diversité
+    inter-patientes ;
+    \item ajustement de luminosité et de contraste ($\pm10\,\%$) pour
+    reproduire les différences d'exposition entre appareils ;
+    \item recadrage aléatoire (échelle $0{,}9$--$1{,}1$) pour renforcer la
+    robustesse aux translations et légers décalages de cadrage.
+\end{itemize}
+Ces transformations ne sont appliquées qu'au jeu d'entraînement. Elles ne
+touchent jamais la validation ni le test, pour ne pas fausser l'évaluation.
+
+\subsection{Répartition avant et après suréchantillonnage}
+
+Le suréchantillonnage utilisé dans le code du projet porte les classes
+minoritaires jusqu'à 50\,\% de la taille de la classe majoritaire (voir
+Section~\ref{sec:approche5}), plutôt qu'un rééquilibrage complet à
+l'identique sur les 4 classes. C'est un compromis qui limite la duplication
+excessive des classes les plus rares (voir la discussion sur la
+mémorisation, Section~\ref{sec:test-seuil-a}). Les tableaux ci-dessous,
+calculés directement sur le CSV d'annotations VinDr-Mammo
+(\texttt{Codes/compute\_augmentation\_stats.py}), montrent la répartition
+réelle avant et après cette étape.
+
+\begin{table}[h]
+\centering
+\caption{Répartition des images par densité et par split, avant augmentation}
+\begin{tabular}{lrr}
+\toprule
+Classe & Training (16000 images) & Test (4000 images) \\
+\midrule
+Density A & 80 & 20 \\
+Density B & 1528 & 380 \\
+Density C & 12232 & 3060 \\
+Density D & 2160 & 540 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Répartition du jeu d'entraînement après suréchantillonnage ciblé}
+\begin{tabular}{lrr}
+\toprule
+Classe & Avant & Après \\
+\midrule
+Density A & 80 & 6116 \\
+Density B & 1528 & 6116 \\
+Density C & 12232 & 12232 (inchangée, classe majoritaire) \\
+Density D & 2160 & 6116 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Cette stratégie ramène le ratio entre la classe la plus fréquente et la
+classe la plus rare de \textbf{1:152,9} (un déséquilibre brut, bien plus
+sévère que sur des jeux de données curés) à \textbf{1:2,0} après
+suréchantillonnage. Le jeu de test, lui, n'est jamais modifié : il conserve
+la distribution naturelle du dataset (Density A = 20 images sur 4000, soit
+0,5\,\%). C'est pour ça que les métriques de test sur cette classe restent
+statistiquement fragiles même après un entraînement rééquilibré, avec
+seulement 10 images de support sur un sous-échantillon de test de 2000
+images pour la vue CC (voir Section~\ref{sec:approche5}).
+
+% ============================================================================
+\section{Approche 1 -- Architecture univariée fondée sur les Vision Transformers}
+\label{sec:approche1}
+
+\subsection{Principe et chaîne de traitement}
+Avant d'explorer les architectures hybrides à plusieurs branches, une
+première famille de modèles a servi de point de comparaison : les
+\emph{Vision Transformers} (ViT). Ils traitent l'image mammographique dans
+son ensemble, via un mécanisme d'auto-attention, plutôt que par empilement
+de filtres convolutifs locaux comme un CNN classique.
+
+Le pipeline retenu extrait d'abord un vecteur de caractéristiques de
+dimension 768 à partir de l'image prétraitée. Ce vecteur alimente un premier
+MLP à quatre sorties, qui donne une probabilité par classe BI-RADS. Pour
+limiter les erreurs sur les paires de classes visuellement proches
+(notamment B/C et C/D), une seconde étape intervient lorsque les deux
+classes les plus probables (\emph{top-2}) sont proches en score : un second
+MLP, binaire et spécialisé sur cette paire précise, tranche alors entre les
+deux.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=0.6cm and 0.8cm,
+    stepblock/.style={rectangle, draw=blue!70!black, fill=blue!8, thick, rounded corners=5pt,
+                      minimum height=1.1cm, minimum width=3.4cm, align=center, font=\small\sffamily, inner sep=6pt},
+    featureblock/.style={rectangle, draw=purple!70!black, fill=purple!10, thick, rounded corners=5pt,
+                         minimum height=1.1cm, minimum width=3.6cm, align=center, font=\small\sffamily, inner sep=6pt},
+    decisionblock/.style={rectangle, draw=orange!80!black, fill=orange!10, thick, rounded corners=5pt,
+                          minimum height=1.1cm, minimum width=3.4cm, align=center, font=\small\sffamily, inner sep=6pt},
+    outputblock/.style={rectangle, draw=green!60!black, fill=green!15, thick, rounded corners=5pt,
+                        minimum height=1.1cm, minimum width=3.6cm, align=center, font=\small\bfseries\sffamily, inner sep=6pt},
+    link/.style={-Stealth, line width=1.2pt, color=blue!80!black}
+]
+    \node (img) [stepblock, fill=blue!10] {Image DICOM \\ \scriptsize (VinDr-Mammo)};
+    \node (prep) [stepblock, right=of img, fill=cyan!10] {Prétraitement \\ \scriptsize (normalisation, rognage)};
+    \node (trans) [featureblock, right=of prep] {Backbone Transformer \\ \scriptsize (Twins / CvT -- 768D)};
+    \node (mlp4) [stepblock, right=of trans, fill=indigo!10] {MLP 4 classes \\ \scriptsize ($P(y|x)$)};
+
+    \node (top2) [decisionblock, below=1.0cm of img] {Sélection top-2 \\ \scriptsize (cas ambigus)};
+    \node (mlpbin) [decisionblock, right=of top2, fill=magenta!10] {MLP binaire \\ \scriptsize (arbitrage ciblé)};
+    \node (out) [outputblock, right=of mlpbin] {Prédiction finale \\ \scriptsize BI-RADS (A, B, C, D)};
+
+    \draw [link] (img) -- (prep);
+    \draw [link] (prep) -- (trans);
+    \draw [link] (trans) -- (mlp4);
+    \draw [link] (mlp4.south) -- ++(0,-0.4) -| (top2.north);
+    \draw [link] (top2) -- (mlpbin);
+    \draw [link] (mlpbin) -- (out);
+\end{tikzpicture}
+\caption{Chaîne de traitement de l'Approche 1 : extraction de caractéristiques
+par backbone Transformer, classification directe à 4 classes, puis
+arbitrage binaire ciblé en cas d'ambiguïté entre les deux classes les plus
+probables.}
+\label{fig:flowchart_approche1}
+\end{figure}
+
+\subsubsection{Choix du backbone}
+Plusieurs backbones Transformer disponibles dans le projet ont d'abord été
+comparés qualitativement, avant de lancer les entraînements complets, selon
+leur adéquation attendue à la texture fine du tissu mammaire
+(Table~\ref{tab:transformer_selection}). Le \textbf{Twins Transformer},
+complété par une évaluation de \textbf{CvT-W24}, a été retenu comme le
+compromis le plus prometteur, grâce à son alternance entre attention locale
+et attention globale.
+
+\begin{table}[h!]
+    \centering
+    \small
+    \begin{tabular}{lp{8.5cm}c}
+    \toprule
+    \textbf{Backbone} & \textbf{Pertinence pour la mammographie} & \textbf{Retenu} \\
+    \midrule
+    ViT-Base & Attention globale uniforme ; tend à lisser les micro-textures fines. & Moyen \\
+    DeiT & Convient à de petits volumes de données mais résolution spatiale limitée. & Moyen \\
+    PVT & Pyramide multi-échelle, adaptée aux variations d'échelle du tissu dense. & Bon \\
+    \textbf{Twins / CvT} & \textbf{Combine convolutions locales et attention globale.} & \textbf{Retenu} \\
+    \bottomrule
+    \end{tabular}
+    \caption{Comparaison qualitative des backbones Transformer envisagés pour l'Approche 1.}
+    \label{tab:transformer_selection}
+\end{table}
+
+\subsection{Résultats sur le jeu de test VinDr-Mammo}
+L'évaluation a porté sur les 1808 images du jeu de test indépendant, avec le
+backbone Twins Transformer.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.72\textwidth]{image/twins_mlp4_confusion_matrix.png}
+    \caption{Matrice de confusion -- classification directe à 4 classes (MLP4, Twins Transformer).}
+    \label{fig:twins_mlp4_matrix}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.72\textwidth]{image/twins_hierarchical_confusion_matrix.png}
+    \caption{Matrice de confusion -- pipeline avec arbitrage binaire ciblé (Twins Transformer).}
+    \label{fig:twins_hierar_matrix}
+\end{figure}
+
+Le classifieur direct à 4 classes atteint une accuracy globale de
+\textbf{76.66\,\%}. Ce chiffre cache cependant une forte disparité entre
+classes : la classe C, très majoritaire, est bien reconnue (1091/1376, soit
+un rappel de 79.29\,\%), alors que la classe A n'est \textbf{jamais}
+prédite correctement (rappel de 0\,\%). L'arbitrage binaire ciblé améliore
+le rappel de la classe B (149/172, soit 86.63\,\%), mais fait chuter
+l'accuracy globale à 60.57\,\%. Contrairement à l'Approche 7
+(Section~\ref{sec:approche7}), cette architecture ne répartit pas les
+classes en deux groupes fixes : chaque échantillon reçoit son propre
+arbitrage, selon les deux classes les plus probables que lui attribue le
+MLP4. C'est précisément ce mécanisme qui pénalise la classe D : son rappel
+s'effondre à 6.4\,\% (16/250) dans le pipeline complet, alors que le MLP4
+seul obtenait déjà 69.6\,\% sur cette même classe -- ce n'est donc pas
+l'arbitrage binaire C/D en lui-même qui est en cause (isolé, il retrouve un
+rappel D de 75.2\,\%, Figure~\ref{fig:twins_binary_cd}), mais la
+combinaison de la sélection top-2 et de cet arbitrage qui, pour la grande
+majorité des vrais cas D, aboutit à une prédiction C.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\textwidth]{image/twins_binary_2_3_confusion_matrix.png}
+    \caption{Classifieur binaire C vs D évalué isolément (hors pipeline hiérarchique), Twins Transformer.}
+    \label{fig:twins_binary_cd}
+\end{figure}
+
+Les courbes ROC
+one-vs-rest du classifieur 4 classes confirment ce constat, avec une AUC de
+0.79 pour A contre 0.93, 0.81 et 0.86 pour B, C et D (Figure~\ref{fig:twins_mlp4_roc}) --
+la classe A reste
+la plus difficile à isoler, malgré une capacité de discrimination correcte
+sur les trois autres.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.72\textwidth]{image/twins_mlp4_roc_curves.png}
+    \caption{Courbes ROC one-vs-rest du classifieur 4 classes (MLP4, Twins Transformer).}
+    \label{fig:twins_mlp4_roc}
+\end{figure}
+
+\subsection{Standardisation photométrique des images DICOM}
+L'inspection des en-têtes DICOM de VinDr-Mammo a révélé que certaines
+images sont enregistrées avec l'attribut \texttt{PhotometricInterpretation}
+à \texttt{MONOCHROME1} (fond clair, tissu sombre) plutôt qu'à
+\texttt{MONOCHROME2} (fond sombre, tissu clair). Cette inversion de
+polarité, si elle n'est pas corrigée, perturbe directement l'apprentissage
+des filtres convolutifs et des mécanismes d'attention : la même densité de
+tissu ne produit alors pas la même intensité de pixel selon le format
+d'origine.
+
+Un module de détection et d'inversion automatique a donc été ajouté au
+prétraitement (\texttt{Codes/preprocessing.py}, fonction
+\texttt{read\_dicom}), qui ramène systématiquement toute image vers la
+convention à fond noir (\texttt{MONOCHROME2}). Pour vérifier que cette
+conversion ne modifie pas l'information utile, mais seulement sa polarité,
+une analyse à quatre panneaux a été mise en place : image brute, image
+corrigée, profil d'intensité 1D sur la ligne médiane, et histogramme des
+intensités. La Figure~\ref{fig:monochrome1_analysis} montre le cas d'une
+image \texttt{MONOCHROME1} : le profil 1D confirme une inversion exacte et
+symétrique du signal. La Figure~\ref{fig:monochrome2_analysis}, pour une
+image déjà en \texttt{MONOCHROME2}, montre au contraire une superposition
+parfaite entre le signal brut et le signal après prétraitement -- la preuve
+que la conversion n'altère rien quand elle n'est pas nécessaire.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.98\textwidth]{image/figure6_monochrome1.png}
+    \caption{Image \texttt{MONOCHROME1} avant/après correction : (1) DICOM brut à fond clair ;
+    (2) image corrigée à fond noir ; (3) profil d'intensité 1D montrant l'inversion du signal ;
+    (4) histogramme des intensités.}
+    \label{fig:monochrome1_analysis}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.98\textwidth]{image/figure7_monochrome2.png}
+    \caption{Image \texttt{MONOCHROME2} avant/après passage dans le prétraitement :
+    (1) DICOM brut, déjà à fond noir ; (2) image inchangée ; (3) profil 1D montrant la
+    superposition exacte des deux signaux ; (4) histogramme des intensités.}
+    \label{fig:monochrome2_analysis}
+\end{figure}
+
+En complément, une pondération inversement proportionnelle à la fréquence
+de chaque classe a été appliquée à la fonction de perte, pour limiter le
+biais vers la classe C déjà observé plus haut.
+
+\subsection{Essai avec CvT-W24 et cohérence gauche/droite}
+Un second backbone, \textbf{CvT-W24} (\emph{Convolutional Vision
+Transformer, Wide-24}), a été testé pour voir si la réintroduction de
+convolutions dans les blocs d'attention améliorait la capture des
+micro-textures. Après 50 époques d'entraînement (taux d'apprentissage
+$10^{-4}$, batch de 16), le modèle dépasse 90\,\% d'accuracy sur
+l'entraînement mais stagne sur le test : c'est un cas de surapprentissage
+marqué, le modèle mémorise les particularités des images d'entraînement
+sans généraliser à de nouvelles patientes.
+
+Avant de changer de stratégie d'architecture, la cohérence des annotations
+de densité a été vérifiée entre le sein gauche et le sein droit d'une même
+patiente sur l'ensemble de VinDr-Mammo, avec la même méthode que celle de
+la Section~\ref{sec:augmentation} : \textbf{99.4\,\%} des études présentent
+une densité identique des deux côtés. Cette cohérence quasi totale confirme
+la fiabilité de l'étiquetage du dataset, et justifie l'usage de
+transformations symétriques (flip horizontal) dans la stratégie
+d'augmentation.
+
+Trois pistes d'amélioration ont été retenues à l'issue de cette première
+approche :
+\begin{enumerate}
+    \item renforcer la régularisation (dropout plus élevé, label smoothing) pour limiter le surapprentissage observé avec CvT-W24 ;
+    \item cibler l'augmentation de données sur les classes minoritaires (A et D) plutôt que sur l'ensemble du jeu de données ;
+    \item remplacer l'arbitrage binaire local par une véritable architecture hiérarchique en cascade, plus proche du raisonnement clinique par élimination progressive.
+\end{enumerate}
+
+\subsection{Bilan et transition}
+La comparaison entre classification directe
+(Figure~\ref{fig:twins_mlp4_matrix}) et arbitrage binaire ciblé
+(Figure~\ref{fig:twins_hierar_matrix}) montre qu'aucune des deux stratégies,
+prise isolément, ne traite correctement le déséquilibre naturel des classes
+de densité. La première ignore complètement la classe A ; la seconde
+corrige partiellement ce biais, mais au prix d'une accuracy globale
+nettement plus faible. Ce constat motive le passage à une architecture de
+classification hiérarchique en cascade, structurée selon la logique
+diagnostique des radiologues : opposer d'abord tissu peu dense et tissu
+dense, puis raffiner à l'intérieur de chaque groupe. C'est ce que développe
+la suite de ce chapitre.
+
+% ============================================================================
+\section{Approche 2 -- Fine-tuning de backbones (ViT et ResNet50), classification directe}
+\label{sec:approche2}
+
+Cette approche sert de référence simple : plutôt que de combiner plusieurs
+sources d'information, on entraîne directement un backbone profond de bout
+en bout sur l'image entière, sans branche auxiliaire. L'idée est d'avoir un
+point de comparaison, pour juger si les architectures hybrides introduites
+plus loin apportent vraiment un gain, ou si un simple fine-tuning suffit
+déjà à capturer l'essentiel du signal.
+
+\subsection{Architecture}
+Le backbone (ViT-Base ou ResNet50, tous deux pré-entraînés sur ImageNet) reçoit
+l'image mammographique prétraitée en entrée et produit un vecteur de
+caractéristiques global $f_\theta(x)$ après pooling. Sa tête de classification
+d'origine est remplacée par une couche linéaire projetant directement vers les
+quatre classes de densité :
+\[
+  \hat{y} = \operatorname{softmax}\big(W_c\, f_\theta(x) + b_c\big), \qquad
+  W_c \in \mathbb{R}^{4 \times d}, \; b_c \in \mathbb{R}^4
+\]
+où $d$ est la dimension du vecteur de sortie du backbone ($d{=}768$ pour
+ViT-Base, $d{=}2048$ pour ResNet50 avant projection). L'entraînement optimise
+une entropie croisée standard :
+\[
+  \mathcal{L} = -\frac{1}{N}\sum_{i=1}^{N} \log \hat{p}_{i, y_i}
+\]
+
+\subsection{ViT}
+\textbf{Terminé.} 10 époques, batch size 10, GTX 1080 Ti (environ 2h18
+d'entraînement), pour une Train Acc finale de 74.26\,\% -- ce mode
+d'entraînement n'a pas de split de validation, voir Section~\ref{sec:approche2}
+plus haut. L'évaluation sur le jeu de test indépendant (4000 images, split
+\texttt{test} de VinDr-Mammo, jamais vu pendant l'entraînement) donne une
+\textbf{Test Acc de 70.00\,\%}.
+
+\begin{table}[h]
+\centering
+\caption{ViT (Approche 2) -- Rapport de classification sur le test (4000 images)}
+\begin{tabular}{lrrrr}
+\toprule
+Classe & Précision & Rappel & F1-score & Support \\
+\midrule
+Density A & 0.32 & 0.65 & 0.43 & 20 \\
+Density B & 0.32 & 0.90 & 0.48 & 380 \\
+Density C & 0.93 & 0.67 & 0.78 & 3060 \\
+Density D & 0.56 & 0.73 & 0.64 & 540 \\
+\midrule
+\textbf{Accuracy globale} & \multicolumn{3}{c}{} & \textbf{0.70} (4000) \\
+Moyenne macro & 0.53 & 0.74 & 0.58 & \\
+Moyenne pondérée & 0.82 & 0.70 & 0.73 & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/test_Vit_direct.png}
+    \caption{ViT (Approche 2) -- résultat du test final.}
+    \label{fig:vit_test}
+\end{figure}
+
+Ce résultat mérite d'être souligné : c'est la \textbf{seule architecture de
+tout ce mémoire à obtenir un rappel significatif sur la classe A} (0.65,
+soit 13 images sur 20 correctement reconnues), là où toutes les
+architectures à double branche échouent presque totalement sur cette classe
+(rappel nul ou quasi nul, voir notamment Section~\ref{sec:test-seuil-a}).
+L'explication la plus probable tient à la nature du mécanisme d'attention
+du Transformer, qui regarde l'image dans son ensemble plutôt que de
+s'appuyer sur des filtres convolutifs locaux optimisés pour détecter des
+motifs de texture fine. Un sein presque entièrement adipeux (classe A) se
+définit avant tout par l'\emph{absence} de texture dense sur tout le
+cliché -- un signal global que l'attention du ViT semble mieux capter que
+les branches convolutives des architectures hybrides. La contrepartie est
+un rappel très élevé mais peu précis sur la classe B (0.90 de rappel,
+seulement 0.32 de précision) : le modèle confond plutôt A et B entre elles
+(20 images de B prédites A) qu'avec les classes plus denses, ce qui reste
+cohérent avec la proximité visuelle réelle de ces deux catégories.
+\subsection{ResNet50}
+Un bug a été identifié et corrigé avant l'entraînement final :
+\texttt{FineTunedFeatureExtractor} appelait \texttt{forward\_features()}, qui
+renvoie la carte de caractéristiques spatiale avant pooling
+($\mathbb{R}^{C\times H\times W}$), au lieu du modèle complet qui renvoie les
+logits de classification ($\mathbb{R}^4$). Résultat :
+\texttt{CrossEntropyLoss} plantait, puisqu'elle attend un vecteur de scores
+par classe et non une carte spatiale.
+
+\textbf{Terminé.} Train Acc finale 76.39\,\% (meilleure époque, même remarque
+que pour ViT : pas de split de validation pour cette approche, voir plus
+haut). L'évaluation sur le jeu de test indépendant (4000 images) donne une
+\textbf{Test Acc de 74.00\,\%}.
+
+\begin{table}[h]
+\centering
+\caption{ResNet50 (Approche 2) -- Rapport de classification sur le test (4000 images)}
+\begin{tabular}{lrrrr}
+\toprule
+Classe & Précision & Rappel & F1-score & Support \\
+\midrule
+Density A & 0.30 & 0.95 & 0.46 & 20 \\
+Density B & 0.48 & 0.84 & 0.61 & 380 \\
+Density C & 0.97 & 0.70 & 0.81 & 3060 \\
+Density D & 0.46 & 0.90 & 0.61 & 540 \\
+\midrule
+\textbf{Accuracy globale} & \multicolumn{3}{c}{} & \textbf{0.74} (4000) \\
+Moyenne macro & 0.55 & 0.85 & 0.62 & \\
+Moyenne pondérée & 0.85 & 0.74 & 0.76 & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/test_resnet50_direct.png}
+    \caption{ResNet50 (Approche 2) -- résultat du test final.}
+    \label{fig:resnet50_test}
+\end{figure}
+
+C'est le résultat le plus marquant de tout ce mémoire sur la classe A :
+\textbf{rappel de 0.95} (19 images sur 20 correctement reconnues), largement
+au-dessus de tout ce qui a été observé ailleurs -- y compris le ViT de cette
+même Approche 2 (0.65). La précision associée reste faible (0.30, 44 fausses
+alarmes sur les 63 images prédites A), mais le signal est net : sur un
+problème où toutes les architectures à double branche échouent totalement
+sur cette classe (Section~\ref{sec:approche6}), un simple fine-tuning direct
+de ResNet50 sur l'image entière suffit à la détecter dans la quasi-totalité
+des cas. L'explication la plus probable est la même que pour le ViT : sans
+segmentation ni branche auxiliaire, le réseau apprend directement à repérer
+l'absence de texture dense sur l'ensemble du cliché, un signal global que les
+architectures hybrides, focalisées sur la fusion de features locales,
+semblent perdre en route. La contrepartie est un rappel de la classe C en
+retrait (0.70) : le modèle « sur-route » vers B et D au profit de la
+sensibilité sur A, un compromis qui explique l'écart entre l'accuracy globale
+modeste (74\,\%) et le macro F1 relativement élevé (0.62) par rapport aux
+architectures qui écrasent la classe A pour maximiser l'accuracy sur la
+classe C majoritaire.
+
+% ============================================================================
+\section{Approche 3 -- ResNet50 + Histogramme (vues MLO)}
+\label{sec:approche3}
+
+\subsection{Architecture}
+Cette approche introduit le principe de fusion à deux branches qui reviendra
+tout au long du mémoire. Une branche image (ResNet50, 1 canal, sortie
+projetée à 512 dimensions) extrait les caractéristiques visuelles globales.
+Une seconde branche, purement statistique, résume la distribution des
+niveaux de gris de l'image sous forme d'un histogramme à 256 classes
+$h \in \mathbb{R}^{256}$, projeté par un petit MLP (\texttt{HistogramMLP})
+vers un vecteur de 64 dimensions. L'idée est que la densité mammaire dépend
+en partie de la proportion de tissu dense (clair) par rapport au tissu
+graisseux (sombre) -- une information que l'histogramme capture directement,
+sans passer par des convolutions :
+\[
+  f_{\text{img}}(x) \in \mathbb{R}^{512}, \qquad
+  f_{\text{hist}}(h) \in \mathbb{R}^{64}
+\]
+Les deux vecteurs sont concaténés puis passés à un MLP final de classification :
+\[
+  z = \big[f_{\text{img}}(x) \,\Vert\, f_{\text{hist}}(h)\big] \in \mathbb{R}^{576},
+  \qquad
+  \hat{y} = \operatorname{softmax}\big(\text{MLP}_c(z)\big)
+\]
+
+\textbf{Terminé.} Validation Acc \textbf{83.36\%}, Test Acc \textbf{85\%}
+(2000 images MLO). Point faible : recall nul (0\%) sur Density A (classe très
+minoritaire).
+
+\begin{center}
+\includegraphics[width=0.8\textwidth]{image/test_hybrid_resNet50_MLO.png}\\
+\includegraphics[width=0.8\textwidth]{image/entrainement_hybrid_resNet50_MLO.png}
+\end{center}
+
+% ============================================================================
+\section{Approche 4 -- RexNet150 + Histogramme (vues CC)}
+\label{sec:approche4}
+Architecture strictement identique à l'Approche 3 (Section~\ref{sec:approche3}),
+seul le backbone image change (RexNet150 au lieu de ResNet50) ainsi que la vue
+utilisée (craniocaudale au lieu de médio-latérale oblique). Ce choix permet une
+comparaison directe de l'effet du backbone et de la vue à architecture de
+fusion constante.
+
+\textbf{Terminé.} Validation Acc \textbf{81.56\%}, Test Acc \textbf{80\%}
+(2000 images CC).
+\begin{center}
+\includegraphics[width=0.8\textwidth]{image/test_Hybride_RexNet150_CC.png}\\
+\includegraphics[width=0.8\textwidth]{image/entrainement_Hybride_RexNet150_CC.png}
+\end{center}
+% ============================================================================
+\section{Approche 5 -- Intégration d'une branche GLCM (comparaison de 3 modèles)}
+\label{sec:approche5}
+
+\subsection{Motivation et architecture}
+L'histogramme des Approches 3 et 4 ne décrit que la distribution globale des
+intensités, sans tenir compte de leur agencement spatial. Or la densité
+mammaire se traduit aussi par des propriétés de \emph{texture} du tissu,
+comme son homogénéité ou sa granularité, qui échappent à un simple
+histogramme. La branche GLCM (\emph{Gray Level Co-occurrence Matrix})
+remplace donc la branche histogramme par une branche de texture.
+
+La matrice de co-occurrence $P_{d,\theta}(i,j)$, introduite par Haralick et
+al.\ \cite{ref_haralick}, mesure, pour une distance $d$ et une orientation
+$\theta$ données, la fréquence à laquelle un pixel d'intensité $i$ se
+retrouve voisin d'un pixel d'intensité $j$. Cinq des descripteurs
+statistiques proposés dans cet article sont calculés à partir de cette
+matrice, formant le vecteur de texture utilisé en entrée du
+\texttt{GLCMDescriptorMLP} :
+\begin{align}
+  \text{Contraste} &= \sum_{i,j} (i-j)^2\, P(i,j) \\
+  \text{Homogénéité} &= \sum_{i,j} \frac{P(i,j)}{1+(i-j)^2} \\
+  \text{Énergie} &= \sum_{i,j} P(i,j)^2 \\
+  \text{Corrélation} &= \sum_{i,j} \frac{(i-\mu_i)(j-\mu_j)\,P(i,j)}{\sigma_i \sigma_j} \\
+  \text{Entropie} &= -\sum_{i,j} P(i,j)\, \log P(i,j)
+\end{align}
+Ces cinq valeurs sont projetées par un MLP léger vers un vecteur de 16
+dimensions $f_{\text{glcm}} \in \mathbb{R}^{16}$, concaténé à la branche image
+($\mathbb{R}^{512}$) exactement comme pour l'histogramme :
+\[
+  z = \big[f_{\text{img}}(x) \,\Vert\, f_{\text{glcm}}\big] \in \mathbb{R}^{528}
+\]
+
+\subsection{Déséquilibre de classes et pondération}
+Comme Density A représente moins de 1\% des données, la loss d'entropie
+croisée est pondérée par l'inverse de la fréquence de chaque classe -- une
+pondération courante quand le déséquilibre est marqué :
+\[
+  w_c = \frac{N}{K \cdot n_c}, \qquad
+  \mathcal{L} = -\frac{1}{N}\sum_{i=1}^N w_{y_i} \log \hat{p}_{i,y_i}
+\]
+où $N$ est le nombre total d'exemples, $K{=}4$ le nombre de classes et $n_c$
+le nombre d'exemples de la classe $c$. La classe minoritaire est aussi
+ré-échantillonnée dans le jeu d'entraînement jusqu'à atteindre 50\% de la
+taille de la classe majoritaire, un compromis qui évite à la fois la rareté
+extrême de la classe A et une duplication excessive qui favoriserait le
+surapprentissage. Le taux d'apprentissage suit une décroissance en cosinus :
+\[
+  \eta_t = \eta_{\min} + \tfrac{1}{2}(\eta_{\max}-\eta_{\min})
+  \Big(1+\cos\big(\tfrac{t}{T_{\max}}\pi\big)\Big)
+\]
+
+Un bug de normalisation a aussi été trouvé dans
+\texttt{GLCMDescriptorMLP.forward()} : le tenseur d'entrée, déjà normalisé
+(valeurs approximativement dans $[-2, 2]$ après la normalisation ImageNet),
+était traité comme des pixels bruts $[0, 255]$ avant le calcul du GLCM.
+Cela provoquait un débordement \texttt{uint8}, et donc un calcul de texture
+sur des valeurs corrompues plutôt que sur l'image réelle. Corrigé dans les
+deux copies du projet concernées (\texttt{hybrid\_train\_cc\_rexnet/},
+\texttt{hybrid~train~mlo~resnet/}).
+
+\subsection{Modèle 1 -- RexNet150 + GLCM (vues CC)}
+\textbf{Terminé (10 époques).} Meilleur modèle retenu à l'Époque 10/10 :
+Train Acc 87.98\%, \textbf{Val Acc 73.42\%}. \textbf{Test Acc 74.85\%}
+(2000 images CC) -- cohérence val/test qui confirme l'absence de fuite de
+données.
+
+\begin{table}[h]
+\centering
+\caption{RexNet150+GLCM/CC -- Rapport de classification sur le test (2000 images)}
+\begin{tabular}{lrrrr}
+\toprule
+Classe & Précision & Rappel & F1-score & Support \\
+\midrule
+Density A & 0.33 & 0.10 & 0.15 & 10 \\
+Density B & 0.51 & 0.87 & 0.65 & 190 \\
+Density C & 0.95 & 0.71 & 0.82 & 1530 \\
+Density D & 0.45 & 0.88 & 0.60 & 270 \\
+\midrule
+\textbf{Accuracy globale} & \multicolumn{3}{c}{} & \textbf{0.75} (2000) \\
+Moyenne macro & 0.56 & 0.64 & 0.55 & \\
+Moyenne pondérée & 0.84 & 0.75 & 0.77 & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{center}
+\includegraphics[width=0.6\textwidth]{image/courbe_accuracy_modele1_rexnet150_glcm_cc.png}\\
+\includegraphics[width=0.6\textwidth]{image/entrainement_modele1_rexnet150_glcm_cc.png}\\
+\includegraphics[width=0.6\textwidth]{image/test_modele1_rexnet150_glcm_cc.png}
+\end{center}
+L'évaluation dédiée du split de validation donne 73.64\% (1597 images),
+un chiffre cohérent avec le 73.42\% rapporté pendant l'entraînement -- la
+légère différence vient du \texttt{drop\_last} sur le \texttt{DataLoader}
+d'entraînement. Pas de courbe de loss possible pour ce run : elle n'a pas
+été enregistrée à l'époque, mais c'est corrigé dans le code pour les
+prochains entraînements (voir note méthodologique en fin de section).
+
+\subsubsection{Test du seuil de confiance sur la classe A}
+\label{sec:test-seuil-a}
+
+Lors d'un point d'avancement, mon  encadrant a proposé une piste pour gérer la classe A, très minoritaire : si le modèle n'est confiant sur
+aucune des classes B, C ou D (par exemple si leur probabilité combinée
+reste sous un seuil de 40\,\%), on pourrait classer automatiquement l'image
+en A par élimination, plutôt que de laisser le modèle trancher directement
+entre les 4 classes. vérifier cette hypothèse en envoyant au modèle des images dont la vraie classe est A, et en regardant les
+probabilités de sortie plutôt que la seule prédiction finale.
+
+Ce test a été fait sur les 10 images de classe A du jeu de test (vues CC),
+avec le modèle RexNet150+GLCM. Le résultat ne confirme pas l'hypothèse
+de départ :
+
+\begin{table}[h]
+\centering
+\caption{Comportement du modèle sur les 10 images réelles de classe A (test)}
+\begin{tabular}{lr}
+\toprule
+Classe A prédite correctement & 1/10 \\
+Confiant ($\geq 40\,\%$) mais faux sur B, C ou D & 9/10 \\
+Incertain (aucune classe B/C/D $\geq 40\,\%$) & 0/10 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Sur les 9 images mal classées, le modèle attribue presque toujours plus de
+96\,\% de probabilité à la classe B, parfois jusqu'à 100,0\,\%. Il n'est
+donc jamais réellement \og{}incertain\fg{} face à une image de classe A :
+au contraire, il est très confiant, mais dans la mauvaise classe. Cette
+observation invalide l'heuristique du seuil de confiance telle que proposée
+au départ, qui supposait une zone d'hésitation exploitable entre les
+classes. Malgré la pondération de la loss et le suréchantillonnage déjà en
+place pour cette classe, le modèle semble avoir surtout appris à ignorer la
+classe A au profit de B. La raison la plus probable : les 10 exemples de
+test, et le nombre restreint d'exemples natifs disponibles à
+l'entraînement avant suréchantillonnage, ne suffisent pas à lui faire
+apprendre une frontière de décision fiable. Ce constat pointe donc moins
+vers une correction simple par seuillage que vers le besoin d'une vraie
+collecte ou augmentation de données pour cette classe.
+
+Ce n'est pas un bug dans le code d'entraînement, mais une limite
+structurelle : le suréchantillonnage actuel duplique un très petit nombre
+d'images natives (le \texttt{target\_count} fixé à 50\,\% de la classe
+majoritaire implique un facteur de duplication de l'ordre de 50 à 75 pour
+la classe A) plutôt que d'apporter une réelle diversité. Cela favorise la
+mémorisation de ces quelques images plutôt que l'apprentissage d'une notion
+générale de tissu peu dense. Deux pistes d'amélioration restent
+envisageables, mais n'ont pas pu être mises en \oe{}uvre faute de temps
+avant l'échéance :\\
+\begin{itemize}
+    \item remplacer la pondération de la loss par une \emph{focal loss},
+    qui force explicitement le modèle à se concentrer sur les exemples
+    difficiles plutôt que sur les exemples majoritaires déjà bien appris ;
+    \item appliquer un ré-échantillonnage de type SMOTE directement dans
+    l'espace des caractéristiques (et non sur les pixels), comme le fait
+    MammoViT \cite{ref19} déjà cité dans notre état de l'art, plutôt qu'une
+    simple duplication d'images.
+\end{itemize}
+\todo{reproduire ce même test du seuil de confiance sur un autre modèle une
+fois disponible, pour déterminer si cet échec sur la classe A est propre à
+cette architecture (RexNet150+GLCM/CC) ou un phénomène général du projet}
+
+\subsection{Modèle 2 -- ResNet50 + GLCM (vues MLO)}
+\textbf{Terminé (10 époques).} Meilleur modèle retenu à l'Époque 10/10 :
+Train Acc 85.78\%, \textbf{Val Acc 72.81\%}. \textbf{Test Acc 75.95\%}
+(2000 images MLO) -- de nouveau, l'écart val/test n'est que de 3 points, ce
+qui confirme l'absence de fuite de données pour ce second modèle aussi.
+L'évaluation dédiée du split de validation confirme 72.86\,\% (1603
+images), un résultat cohérent avec le 72.81\,\% rapporté pendant
+l'entraînement.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/entrainement_modele2_resnet50_glcm_mlo.png}
+    \caption{ResNet50+GLCM (vues MLO) -- résultat de l'entraînement (matrice de confusion sur validation, meilleure époque).}
+    \label{fig:glcm_mlo_entrainement}
+\end{figure}
+
+La matrice de validation montre un profil très proche de celle du test.
+La classe A reste difficile (3 succès sur 13, rappel 0.23), mais fait
+légèrement mieux qu'en test, où seul 1 succès sur 10 était obtenu -- un
+écart plausible vu le petit nombre d'échantillons des deux côtés. Le reste
+de la confusion suit le même schéma que partout ailleurs dans ce mémoire :
+les erreurs se concentrent presque uniquement entre classes voisines (B
+confondue avec C, C avec D), jamais entre classes opposées comme A et D,
+ce qui reste cohérent avec la nature progressive de la densité mammaire.
+
+\begin{table}[h]
+\centering
+\caption{ResNet50+GLCM/MLO -- Rapport de classification sur le test (2000 images)}
+\begin{tabular}{lrrrr}
+\toprule
+Classe & Précision & Rappel & F1-score & Support \\
+\midrule
+Density A & 0.33 & 0.10 & 0.15 & 10 \\
+Density B & 0.49 & 0.92 & 0.64 & 190 \\
+Density C & 0.95 & 0.73 & 0.83 & 1530 \\
+Density D & 0.49 & 0.84 & 0.62 & 270 \\
+\midrule
+\textbf{Accuracy globale} & \multicolumn{3}{c}{} & \textbf{0.76} (2000) \\
+Moyenne macro & 0.56 & 0.65 & 0.56 & \\
+Moyenne pondérée & 0.84 & 0.76 & 0.78 & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/courbe_accuracy_ modele2_resnet50_glcm_mlo.png}
+    \caption{ResNet50+GLCM (vues MLO) -- évolution de l'accuracy sur les 10 époques.}
+    \label{fig:glcm_mlo_courbe}
+\end{figure}
+
+La courbe montre la même dynamique que le Modèle 1 (CC) : le Train Acc
+progresse régulièrement, la validation est plus instable, avec un net
+décrochage à l'Époque 3 (53.19\,\%, en retrait par rapport aux 57.06\,\% de
+l'Époque 2), puis un vrai saut à l'Époque 5 (71.31\,\%) qui marque le début
+réel de la convergence. Les 5 premières époques servent surtout au modèle à
+sortir d'une zone de réglages instables avant de trouver une direction
+stable.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/test_ modele2_resnet50_glcm_mlo.png}
+    \caption{ResNet50+GLCM (vues MLO) -- résultat du test final.}
+    \label{fig:glcm_mlo_test}
+\end{figure}
+
+Ce second modèle confirme, sur une vue différente (MLO au lieu de CC) et un
+backbone différent (ResNet50 au lieu de RexNet150), exactement le même
+profil d'erreurs que le Modèle 1. La classe A reste très fragile (1 succès
+sur 10, précision 0.33), l'essentiel de la confusion se concentre entre
+classes voisines (B/C et C/D), et le résultat global (75.95\,\%) est même
+un peu supérieur à celui du Modèle 1 sur CC (74.85\,\%). Cette cohérence
+entre deux combinaisons backbone/vue différentes renforce l'idée que la
+difficulté sur la classe A est structurelle -- liée à la rareté des données,
+voir Section~\ref{sec:test-seuil-a} -- plutôt que propre à une architecture
+ou une vue en particulier.
+
+\subsection{Modèle 3 -- RexNet150 + Histogramme (vues MLO)}
+\label{sec:modele3-invalide}
+
+\textbf{Historique du bug.} La relecture du code source a révélé que le
+premier run réalisé pour ce modèle (Train Acc 84.98\%, Val Acc 86.68\%,
+Test Acc 84\%) chargeait ses données d'entraînement et le checkpoint
+pré-entraîné de la branche image depuis un répertoire personnel
+appartenant à un autre compte du cluster, via des valeurs codées en dur
+dans la configuration du script (\texttt{ANNOTATIONS\_CSV},
+\texttt{IMAGE\_ROOT}, \texttt{FINETUNED\_WEIGHTS\_PATH}). Ce résultat ne
+constituait donc pas une réplication indépendante ; il a été retiré du
+mémoire, et le code corrigé pour pointer vers les données VinDr-Mammo
+partagées et un checkpoint entraîné localement.
+
+\smallskip
+\noindent\textit{Note méthodologique (log/loss) :} un
+\texttt{history["train\_loss"]}/\texttt{history["val\_loss"]} a été ajouté aux
+scripts d'entraînement (GLCM, fédéré) afin de pouvoir tracer les courbes de
+perte train/validation sur les prochains entraînements, en complément des
+courbes d'accuracy.
+
+\textbf{Réentraînement avec Focal Loss.} Une fois le code corrigé, ce
+modèle a été réentraîné avec les données propres au projet. Comme la
+pondération de classe simple s'était déjà montrée insuffisante pour la
+classe A ailleurs dans ce mémoire (Section~\ref{sec:test-seuil-a}), ce
+réentraînement utilise la \emph{Focal Loss} \cite{ref_focal_loss}
+plutôt qu'une simple \texttt{CrossEntropyLoss} pondérée :
+\[
+  \mathcal{L}_{\text{focal}} = -\sum_i (1 - \hat{p}_{i,y_i})^\gamma \log \hat{p}_{i,y_i}, \qquad \gamma = 2
+\]
+qui réduit dynamiquement le poids des exemples déjà bien classés (quelle
+que soit leur classe), pour concentrer l'apprentissage sur les cas
+difficiles -- notamment les rares exemples natifs de la classe A.
+
+\textbf{Terminé (10 époques).} Train Acc 79.25\,\%, \textbf{Val Acc
+83.14\,\%} (meilleure époque, retenue).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/entrainement_modele3_focal.png}
+    \caption{RexNet150 + Histogramme (vues MLO), réentraîné avec Focal Loss -- résultat de l'entraînement (matrice de confusion sur validation, meilleure époque).}
+    \label{fig:modele3_focal_entrainement}
+\end{figure}
+
+\textbf{Test Acc 84.00\,\%} (2000 images MLO) -- l'un des meilleurs
+résultats de tout ce mémoire, proche de l'Approche 3 (85\,\%) et de la
+variante siamoise de l'Approche 6 (85\,\%).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/test_modele3_focal.png}
+    \caption{RexNet150 + Histogramme (vues MLO), réentraîné avec Focal Loss -- résultat du test final.}
+    \label{fig:modele3_focal_test}
+\end{figure}
+
+Constat honnête à souligner : malgré la Focal Loss, le \textbf{rappel de
+la classe A reste à 0\,\%} (0/10 en test, 0/9 en validation) -- aucune
+amélioration sur cette classe précise. Ça confirme ce qui était déjà
+suspecté : le problème de la classe A n'est pas une question de
+pondération de la loss (simple ou dynamique), mais de rareté brute des
+données. Avec seulement une poignée d'exemples natifs disponibles à
+l'entraînement, aucune technique de repondération ne peut faire apprendre
+au modèle une frontière de décision fiable pour cette classe -- il
+faudrait une vraie collecte ou augmentation de données, pas un changement
+de fonction de perte.
+
+Le reste de la matrice montre un profil plus contrasté que les autres
+modèles du mémoire : la classe C est excellente (rappel 0.96), la classe
+B correcte (rappel 0.64), mais la classe D chute à un rappel de
+\textbf{0.33} seulement -- la majorité des vraies images D (181 sur 270)
+sont classées C. C'est le rappel D le plus faible observé sur une
+architecture de ce type dans ce mémoire, ce qui suggère que la Focal Loss,
+en poussant le modèle à mieux traiter les cas difficiles en général, a pu
+déplacer une partie de la confusion de B/C vers C/D plutôt que de la
+réduire uniformément -- un compromis à garder en tête plutôt qu'une
+amélioration inconditionnelle.
+
+\subsection{Vérification de la cohérence entre validation et test}
+\label{sec:coherence-val-test}
+
+Pour ce modèle, comme pour tous les modèles hybrides de ce mémoire, le
+split train/validation est réalisé \emph{avant} toute étape de
+suréchantillonnage (voir Section~\ref{sec:augmentation}). C'est un choix
+méthodologique important : si le ré-échantillonnage de la classe
+minoritaire était appliqué avant la séparation train/validation, les mêmes
+images dupliquées se retrouveraient des deux côtés du split, ce qui
+gonflerait artificiellement la Val Acc sans refléter une vraie capacité de
+généralisation.
+
+Cette précaution se vérifie directement dans nos résultats : la Val Acc
+(73.42\%) et la Test Acc (74.85\%) restent proches l'une de l'autre, avec
+un écart de seulement 1,4 point. Cette cohérence est le signe que le
+modèle généralise correctement à des données réellement non vues, plutôt
+que de mémoriser des exemples dupliqués présents des deux côtés du split.
+
+% ============================================================================
+\section{Approche 6 -- Architecture à double branche}
+\label{sec:approche6}
+
+Quatre architectures sont comparées ici. La première suit une architecture
+multi-vue classique : deux vues différentes (CC et MLO), chacune traitée
+par un backbone dédié -- un principe courant dans la littérature sur la
+classification mammographique multi-vue \cite{ref9, ref14}. Les trois
+suivantes explorent d'autres variantes présentes dans cette même
+littérature, pour voir si l'architecture originale est optimale ou si
+d'autres choix de conception feraient mieux sur les mêmes données.
+
+\subsection{Appariement des vues CC et MLO}
+
+Une architecture à double branche image suppose de disposer, pour un même
+sein, à la fois d'une vue CC et d'une vue MLO. Cette contrainte n'est pas
+garantie automatiquement par un jeu de données brut. Notre implémentation
+(\texttt{HybridMammographyDataset}) regroupe donc systématiquement les
+images par \texttt{(study\_id, laterality)}, et ne conserve que les paires
+où les deux vues sont effectivement présentes.
+
+Appliqué à l'ensemble des 20000 images de VinDr-Mammo, cet appariement donne
+le résultat suivant :
+\begin{itemize}
+    \item \textbf{Images conservées} (paires CC+MLO complètes) : 19998
+    \item \textbf{Images écartées} (vue manquante) : 2
+    \item \textbf{Paires study/laterality retenues} : 9999 (9999 vues CC, 9999
+    vues MLO)
+\end{itemize}
+VinDr-Mammo s'avère ici quasiment parfaitement structuré en paires CC/MLO
+complètes, conformément à son protocole d'acquisition standard à deux vues
+par sein : seules 2 images sur 20000 sont concernées par ce filtrage.
+L'entraînement de l'Approche 6 s'appuie donc directement sur la
+quasi-totalité du jeu de données disponible, sans perte significative liée
+à l'appariement.
+
+\subsection{Architecture originale -- vues hétérogènes (RexNet150/CC + ResNet50/MLO)}
+Deux branches image indépendantes, chacune spécialisée sur une vue et un
+backbone différents, sont concaténées avant classification :
+\[
+  z = \big[f^{\text{RexNet150}}_{\text{CC}}(x_{\text{CC}})
+  \,\Vert\, f^{\text{ResNet50}}_{\text{MLO}}(x_{\text{MLO}})\big]
+  \in \mathbb{R}^{1024}
+\]
+La stratégie retenue consiste à pré-entraîner chaque branche séparément sur
+sa vue respective (Approche 4.5), puis à geler ces poids lors de
+l'entraînement du modèle fusionné. Cela stabilise l'optimisation conjointe
+et limite le risque de surapprentissage sur un jeu de données de taille
+modérée.
+
+Quatre bugs réels ont été trouvés et corrigés dans
+\texttt{hybrid~2~branches~images/}. Le gel de branche était silencieusement
+inopérant : le code testait l'existence d'attributs au mauvais nom via
+\texttt{hasattr}. Le chargement des poids pré-entraînés était conditionné à
+tort sur un seul argument \texttt{--backbone} de la ligne de commande, si
+bien qu'une seule branche sur deux chargeait effectivement ses poids.
+L'initialisation des poids de la couche de classification était placée
+après un \texttt{return} dans le code, donc jamais exécutée. Et le jeu de
+test n'appariait jamais réellement les images CC et MLO d'un même examen :
+il retombait systématiquement sur la même image dupliquée pour les deux
+branches, faute d'un mécanisme d'appariement par identifiant d'étude.
+
+\textbf{Terminé (10 époques).} Train Acc 79.74\,\%, Val Acc 83.24\,\% en fin
+d'entraînement, mais le meilleur modèle est retenu dès l'\textbf{Époque
+2/10} (Val Acc 85.80\,\%) -- c'est ce checkpoint, et non celui de la
+dernière époque, qui sert de référence pour la suite.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/courbe_accuracy_architecture_originale.png}
+    \caption{Architecture originale (RexNet150/CC + ResNet50/MLO) -- évolution de l'accuracy sur les 10 époques.}
+    \label{fig:archi_originale_courbe}
+\end{figure}
+
+La validation atteint son maximum dès l'Époque 2, puis oscille entre
+82,95\,\% et 84,66\,\% sans jamais redépasser ce premier pic, alors que
+l'entraînement continue lentement à progresser jusqu'à la fin. C'est un
+signe de surapprentissage précoce plutôt discret : le modèle n'explose pas
+en validation, mais il ne s'améliore plus non plus une fois les branches
+pré-entraînées gelées et seule la couche de fusion encore mise à jour.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/entrainement_architecture_originale.png}
+    \caption{Architecture originale (RexNet150/CC + ResNet50/MLO) -- résultat de l'entraînement (matrice de confusion sur validation, meilleure époque).}
+    \label{fig:archi_originale_entrainement}
+\end{figure}
+
+Sur les 352 images de validation de ce split, aucune n'appartient à la
+classe A -- un effet du filtrage par paire CC/MLO combiné à la rareté déjà
+connue de cette classe dans VinDr-Mammo. Le reste de la matrice suit un
+schéma familier : les erreurs se concentrent entre classes voisines (B/C,
+C/D), avec 17 images de classe C classées D et 14 images de classe D
+classées C.
+
+\textbf{Terminé.} \textbf{Test Acc 83.00\,\%} (2000 paires CC+MLO du test),
+cohérent avec le Val Acc de 85.80\,\% retenu à l'Époque 2 (écart de moins de
+3 points, sans signe d'un effondrement en généralisation malgré le
+surapprentissage précoce discret déjà relevé sur la courbe de validation).
+
+\begin{table}[h]
+\centering
+\caption{Architecture originale (RexNet150/CC + ResNet50/MLO) -- Rapport de classification (test, 2000 paires)}
+\begin{tabular}{lrrrr}
+\toprule
+Classe & Précision & Rappel & F1-score & Support \\
+\midrule
+Density A & 0.14 & 0.20 & 0.17 & 10 \\
+Density B & 0.72 & 0.57 & 0.64 & 190 \\
+Density C & 0.91 & 0.88 & 0.89 & 1530 \\
+Density D & 0.57 & 0.76 & 0.65 & 270 \\
+\midrule
+\textbf{Accuracy globale} & \multicolumn{3}{c}{} & \textbf{0.83} (2000) \\
+Moyenne macro & 0.59 & 0.60 & 0.59 & \\
+Moyenne pondérée & 0.84 & 0.83 & 0.83 & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/test_architecture_originale.png}
+    \caption{Architecture originale (RexNet150/CC + ResNet50/MLO) -- résultat du test final.}
+    \label{fig:archi_originale_test}
+\end{figure}
+
+Avec un rappel de 0.20 sur la classe A (2 succès sur 10), cette variante fait
+mieux que les architectures à fusion même-vue vues plus haut (0\,\% pour la
+paire MLO). Le reste de la matrice reste cohérent avec le schéma habituel :
+les erreurs se concentrent sur les paires de classes adjacentes (B/C, C/D),
+pas de confusion aberrante entre classes éloignées.
+
+\subsection{Variante siamoise -- poids partagés (EfficientNet-B0)}
+Plutôt que deux backbones distincts, cette variante applique un unique
+backbone EfficientNet-B0 aux deux vues, avec des poids partagés (\emph{tied
+weights}) :
+\[
+  z = \big[f_\theta(x_{\text{CC}}) \,\Vert\, f_\theta(x_{\text{MLO}})\big],
+  \qquad \theta \text{ identique pour les deux passes}
+\]
+Ce choix de conception, courant dans la littérature multi-vue en
+mammographie, repose sur l'hypothèse que les deux vues partagent une même
+distribution de texture bas niveau. Il permet aussi de diviser par deux le
+nombre de paramètres du modèle par rapport à l'architecture hétérogène.
+\textbf{Terminé (10 époques).} Train Acc 86.60\,\%, Val Acc 81.53\,\% en fin
+d'entraînement, meilleur modèle retenu à l'\textbf{Époque 4/10} (Val Acc
+84.38\,\%).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/courbe_accuracy_siamoise.png}
+    \caption{Variante siamoise (EfficientNet-B0, poids partagés) -- évolution de l'accuracy sur les 10 époques.}
+    \label{fig:siamoise_courbe}
+\end{figure}
+
+Contrairement à l'architecture hétérogène, ici les deux branches partagent
+les mêmes poids et continuent d'apprendre ensemble tout au long de
+l'entraînement -- le Train Acc progresse de façon quasi continue jusqu'à
+86,60\,\%. La validation, elle, culmine tôt (Époque 4) puis redescend
+progressivement, avec un creux marqué à l'Époque 8 (80,11\,\%). L'écart
+grandissant entre les deux courbes en fin d'entraînement est un signe de
+surapprentissage plus net que pour l'architecture originale, cohérent avec
+le fait que ce modèle continue réellement à apprendre (poids partagés non
+gelés) plutôt que de se limiter à une couche de fusion.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/entrainement_siamoise.png}
+    \caption{Variante siamoise (EfficientNet-B0, poids partagés) -- résultat de l'entraînement (matrice de confusion sur validation, meilleure époque).}
+    \label{fig:siamoise_entrainement}
+\end{figure}
+
+Même absence de classe A que pour l'architecture originale sur ce split de
+352 images -- attendu, puisque c'est le même jeu de validation. La
+confusion se concentre à nouveau sur les paires de classes adjacentes,
+avec toutefois un peu moins d'erreurs C/D (4 seulement classées D à tort)
+que pour l'architecture hétérogène.
+
+\textbf{Terminé.} \textbf{Test Acc 85.00\,\%} (2000 paires CC+MLO du test) --
+le \textbf{meilleur résultat des quatre variantes de l'Approche 6}, et
+légèrement au-dessus même du Val Acc retenu (84.38\,\% à l'Époque 4).
+
+\begin{table}[h]
+\centering
+\caption{Variante siamoise (EfficientNet-B0, poids partagés) -- Rapport de classification (test, 2000 paires)}
+\begin{tabular}{lrrrr}
+\toprule
+Classe & Précision & Rappel & F1-score & Support \\
+\midrule
+Density A & 0.12 & 0.20 & 0.15 & 10 \\
+Density B & 0.69 & 0.59 & 0.64 & 190 \\
+Density C & 0.89 & 0.92 & 0.91 & 1530 \\
+Density D & 0.69 & 0.61 & 0.65 & 270 \\
+\midrule
+\textbf{Accuracy globale} & \multicolumn{3}{c}{} & \textbf{0.85} (2000) \\
+Moyenne macro & 0.60 & 0.58 & 0.59 & \\
+Moyenne pondérée & 0.84 & 0.85 & 0.84 & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/test_siamoise.png}
+    \caption{Variante siamoise (EfficientNet-B0, poids partagés) -- résultat du test final.}
+    \label{fig:siamoise_test}
+\end{figure}
+
+Même rappel sur la classe A que l'architecture originale (0.20, 2 succès sur
+10), mais une accuracy globale supérieure (85\,\% contre 83\,\%), portée
+par une meilleure reconnaissance de la classe C majoritaire (rappel 0.92
+contre 0.88). Le partage de poids entre les deux vues, malgré le
+surapprentissage plus net observé en fin d'entraînement (Section
+précédente), n'empêche donc pas cette variante de mieux généraliser que
+l'architecture à branches hétérogènes sur le jeu de test final.
+
+\subsection{Fusion même-vue -- RexNet150 + ResNet50 (vues MLO)}
+Contrairement aux variantes précédentes qui combinent deux \emph{vues}
+différentes, cette architecture applique deux backbones différents à la
+\emph{même} image :
+\[
+  z = \big[f^{\text{RexNet150}}(x_{\text{MLO}})
+  \,\Vert\, f^{\text{ResNet50}}(x_{\text{MLO}})\big]
+\]
+Ce schéma, connu dans la littérature sous le nom de \emph{Fusion of Hybrid
+Deep Features} (FHDF), part du principe que des architectures différentes
+capturent des biais inductifs complémentaires sur une même entrée -- par
+exemple, les connexions résiduelles de ResNet50 favorisent des motifs
+différents des convolutions rectifiées de RexNet150. Leur combinaison peut
+donc être bénéfique même sans information de vue supplémentaire.
+
+\textbf{Terminé (10 époques).} Train Acc 88.74\,\%, Val Acc 74.62\,\%.
+\textbf{Test Acc 74.85\,\%} (2000 images MLO) : la cohérence entre
+validation et test est raisonnable, sans signe d'un écart anormal.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/courbe_accuracy_fusion_mlo_rexnet150_resnet50.png}
+    \caption{RexNet150+ResNet50 (fusion même-vue, MLO) -- évolution de l'accuracy sur les 10 époques.}
+    \label{fig:fusion_mlo_courbe}
+\end{figure}
+
+La courbe d'entraînement mérite un commentaire à part. La progression de
+l'accuracy sur le jeu d'entraînement est parfaitement régulière, ce qu'on
+attend d'un modèle qui apprend correctement. La validation, elle, zigzague
+fortement d'une époque à l'autre : elle retombe par exemple à 55\,\% à
+l'Époque 2, remonte à 71\,\% à l'Époque 3, puis rechute à 55\,\% à l'Époque
+4. Ce comportement n'est pas synonyme d'un entraînement instable ou raté.
+Avec seulement 1600 images de validation, et un \textit{scheduler} en
+cosinus qui fait encore varier le taux d'apprentissage de façon marquée sur
+les premières époques, il est courant que le modèle traverse plusieurs
+configurations de poids temporairement moins bonnes avant de converger. Ce
+qui compte, c'est la tendance de fond, nettement à la hausse, et le fait
+que le dernier point (Époque 10, 74.62\,\%) soit aussi le meilleur de toute
+la série. Le modèle n'était donc probablement pas encore arrivé en fin de
+convergence quand l'entraînement s'est arrêté, et un nombre d'époques plus
+élevé aurait sans doute continué à améliorer un peu le résultat.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/entrainement_fusion_mlo_rexnet150_resnet50.png}
+    \caption{RexNet150+ResNet50 (fusion même-vue, MLO) -- résultat de l'entraînement (matrice de confusion sur validation, meilleure époque).}
+    \label{fig:fusion_mlo_entrainement}
+\end{figure}
+
+La matrice de confusion de validation confirme ce qu'on observait déjà sur
+le test. La classe A reste presque invisible pour le modèle (2 succès sur
+13 échantillons), et la confusion se concentre surtout entre les classes B
+et C d'un côté, C et D de l'autre. Ce sont des paires de classes
+visuellement proches, ce qui reste cohérent avec la nature continue de la
+densité mammaire plutôt que quatre catégories parfaitement séparables.
+
+\begin{table}[h]
+\centering
+\caption{RexNet150+ResNet50 (fusion même-vue, MLO) -- Rapport de classification (test, 2000 images)}
+\begin{tabular}{lrrrr}
+\toprule
+Classe & Précision & Rappel & F1-score & Support \\
+\midrule
+Density A & 0.00 & 0.00 & 0.00 & 10 \\
+Density B & 0.50 & 0.87 & 0.64 & 190 \\
+Density C & 0.95 & 0.72 & 0.82 & 1530 \\
+Density D & 0.46 & 0.87 & 0.60 & 270 \\
+\midrule
+\textbf{Accuracy globale} & \multicolumn{3}{c}{} & \textbf{0.75} (2000) \\
+Moyenne macro & 0.48 & 0.61 & 0.51 & \\
+Moyenne pondérée & 0.84 & 0.75 & 0.77 & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/test_fusion_mlo_rexnet150_resnet50.png}
+    \caption{RexNet150+ResNet50 (fusion même-vue, MLO) -- résultat du test final.}
+    \label{fig:fusion_mlo_test}
+\end{figure}
+
+On retrouve, comme pour la plupart des architectures de ce mémoire, une
+classe A totalement ignorée (0\,\% de rappel, seulement 10 échantillons de
+test), et une confusion structurelle qui persiste entre les classes
+adjacentes B/C et C/D.
+
+\subsection{Fusion même-vue -- DenseNet121 + ResNet50 (vues CC)}
+Même principe que la variante précédente, appliqué aux vues CC avec
+DenseNet121 et ResNet50 comme paire de backbones.
+
+\textbf{Terminé (10 époques).} Train Acc 90.01\,\%, Val Acc 75.69\,\%.
+\textbf{Test Acc 76.35\,\%} (2000 images CC) : c'est le meilleur résultat
+parmi les variantes de l'Approche 6 testées à ce jour, et il dépasse
+légèrement la variante MLO ci-dessus.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/courbe_accuracy_fusion_cc_densenet121_resnet50.png}
+    \caption{DenseNet121+ResNet50 (fusion même-vue, CC) -- évolution de l'accuracy sur les 10 époques.}
+    \label{fig:fusion_cc_courbe}
+\end{figure}
+
+Même constat que pour la variante MLO : la validation oscille, avec un
+creux net à l'Époque 6 (60.68\,\%, en retrait par rapport aux 70.79\,\% de
+l'époque précédente), avant de repartir à la hausse et de finir sur son
+meilleur score à l'Époque 10. L'écart entre les deux courbes reste
+cependant plus resserré que pour la variante MLO. La validation suit
+d'assez près la tendance de l'entraînement à partir de l'Époque 7, ce qui
+suggère une convergence un peu plus stable pour cette combinaison de
+backbones sur les vues CC.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/entrainement_fusion_cc_densenet121_resnet50.png}
+    \caption{DenseNet121+ResNet50 (fusion même-vue, CC) -- résultat de l'entraînement (matrice de confusion sur validation, meilleure époque).}
+    \label{fig:fusion_cc_entrainement}
+\end{figure}
+
+Ici, la classe A obtient sa meilleure précision de tout le mémoire sur un
+jeu de validation (0.75, pour seulement 3 succès sur 8 échantillons). C'est
+encourageant, mais il faut relativiser : avec un support aussi faible, un
+seul échantillon de plus ou de moins suffirait à faire varier cette
+précision de plusieurs dizaines de points. Le reste de la matrice suit le
+même schéma que la variante MLO, avec l'essentiel des erreurs concentrées
+entre classes voisines (B/C et C/D) plutôt que dispersées au hasard --
+signe que le modèle capture bien une notion de densité progressive, même
+s'il peine encore à tracer des frontières nettes entre catégories
+adjacentes.
+
+\begin{table}[h]
+\centering
+\caption{DenseNet121+ResNet50 (fusion même-vue, CC) -- Rapport de classification (test, 2000 images)}
+\begin{tabular}{lrrrr}
+\toprule
+Classe & Précision & Rappel & F1-score & Support \\
+\midrule
+Density A & 0.50 & 0.10 & 0.17 & 10 \\
+Density B & 0.55 & 0.86 & 0.67 & 190 \\
+Density C & 0.95 & 0.74 & 0.83 & 1530 \\
+Density D & 0.46 & 0.87 & 0.60 & 270 \\
+\midrule
+\textbf{Accuracy globale} & \multicolumn{3}{c}{} & \textbf{0.76} (2000) \\
+Moyenne macro & 0.61 & 0.64 & 0.57 & \\
+Moyenne pondérée & 0.84 & 0.76 & 0.78 & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/test._fusion_cc_densenet121_resnet50.png}
+    \caption{DenseNet121+ResNet50 (fusion même-vue, CC) -- résultat du test final.}
+    \label{fig:fusion_cc_test}
+\end{figure}
+
+Contrairement à la variante MLO, cette configuration parvient à reconnaître
+correctement un échantillon de classe A (précision 0.50, rappel 0.10). Le
+signal est faible mais non nul, à mettre en perspective avec l'échec
+complet observé pour cette même classe sur toutes les autres architectures
+de ce mémoire (voir notamment Section~\ref{sec:test-seuil-a}).
+
+\subsection{Synthèse des architectures de l'Approche 6}
+\begin{table}[h]
+\centering
+\caption{Comparaison des quatre variantes de l'Approche 6}
+\begin{tabular}{lrrr}
+\toprule
+Variante & Train Acc & Val Acc & Test Acc \\
+\midrule
+Fusion même-vue MLO (RexNet150+ResNet50) & 88.74\,\% & 74.62\,\% & 74.85\,\% \\
+Fusion même-vue CC (DenseNet121+ResNet50) & 90.01\,\% & 75.69\,\% & \textbf{76.35\,\%} \\
+Architecture originale (RexNet150/CC+ResNet50/MLO) & 77.01\,\% & 85.80\,\% & 83.00\,\% \\
+Variante siamoise (EfficientNet-B0, poids partagés) & 79.78\,\% & 84.38\,\% & \textbf{85.00\,\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Sur les quatre variantes, la \textbf{variante siamoise obtient le meilleur
+Test Acc du mémoire pour l'Approche 6} (85\,\%), suivie de près par
+l'architecture originale (83\,\%). Les deux configurations à fusion même-vue
+(MLO et CC), testées plus haut, restent en retrait (74.85\,\% et 76.35\,\%).
+Le partage de poids entre vues (variante siamoise) semble donc apporter un
+léger avantage par rapport aux branches hétérogènes indépendantes, malgré un
+surapprentissage plus visible pendant l'entraînement.
+
+% ============================================================================
+\section{Approche 7 -- Classification hiérarchique en cascade (AB/CD $\to$ A/B \& C/D)}
+\label{sec:approche7}
+
+Cette approche reprend les deux mêmes backbones que l'Approche 2 (ViT et
+ResNet50), mais remplace la classification directe à 4 sorties par une
+décision en deux étapes, inspirée du raisonnement clinique par élimination.
+Un premier classifieur binaire sépare les seins peu denses (A, B) des
+seins denses (C, D). Un second classifieur, spécialisé, tranche ensuite à
+l'intérieur du groupe retenu (A contre B, ou C contre D). Cette architecture
+de classification hiérarchique en cascade est déjà présente dans le code du
+projet (voir Section~\ref{sec:correspondance}).
+
+\subsection{Résultats avec ViT}
+
+\textbf{Terminé.} Test Acc \textbf{42.53\,\%} (4000 images), très en retrait
+par rapport aux 70\,\% obtenus par l'Approche 2 avec le même backbone en
+classification directe.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/approche7_vit_test.png}
+    \caption{Cascade hiérarchique (ViT) -- résultat du test final (4000 images), seuil de routage optimisé sur validation.}
+    \label{fig:approche7_vit_test}
+\end{figure}
+
+La cause se trouve entièrement dans le routage de l'Étape 1. VinDr-Mammo
+est dominé par les classes denses (C+D représentent 2240 des 4000 images de
+test, contre 1760 pour A+B), et malgré une pondération de classe dans la
+loss et un seuil optimisé sur une validation interne (0.5102, via critère de
+Youden sur la courbe ROC), le classifieur binaire (A,B)/(C,D) reste biaisé
+vers le groupe majoritaire.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\textwidth]{image/approche7_vit_routage.png}
+    \caption{Cascade hiérarchique (ViT) -- matrice de routage de l'Étape 1 (A,B vs C,D).}
+    \label{fig:approche7_vit_routage}
+\end{figure}
+
+Les vrais cas C/D sont bien routés (rappel 86.96\,\%), mais plus de la
+moitié des vrais cas A/B (926 sur 1760, soit 52.61\,\%) sont envoyés à tort
+vers la branche C/D. Ce n'est pas un détail : une fois qu'un cas A ou B est
+mal routé, il est perdu définitivement, puisque le Modèle 3 (C vs D) ne peut
+plus jamais prédire A ou B. C'est exactement ce qu'on retrouve dans le
+rapport de classification global -- le rappel de la classe B tombe à
+9\,\%, et 350 des 800 vrais A (43.75\,\%) finissent classés C ou D.
+
+Pour vérifier que ce n'est pas le Modèle 2 (A vs B) lui-même qui est en
+cause, on peut l'évaluer isolément, indépendamment du routage de l'Étape 1
+-- c'est-à-dire directement sur les 1760 images A+B du test, sans passer
+par la décision préalable AB/CD.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\textwidth]{image/approche7_vit_modele2.png}
+    \caption{Cascade hiérarchique (ViT) -- Modèle 2 (A vs B) évalué isolément, hors effet du routage.}
+    \label{fig:approche7_vit_modele2}
+\end{figure}
+
+Même isolé, le Modèle 2 ne dépasse que 52.90\,\% -- à peine mieux que le
+hasard sur un problème à deux classes. Le vrai facteur limitant de cette
+approche n'est donc pas seulement le routage : les trois modèles de la
+cascade sont de petits MLP entraînés sur des features ViT déjà figées (sans
+fine-tuning propre à chaque étage, contrairement à l'Approche 2 qui
+fine-tune le backbone de bout en bout). La décomposition hiérarchique, ici,
+amplifie l'effet du déséquilibre de classes au lieu de l'atténuer : une
+erreur de routage précoce est irrécupérable, alors qu'un classifieur direct
+à 4 sorties peut encore corriger le tir sur les étapes suivantes. Une
+piste d'amélioration réaliste serait de fine-tuner le backbone séparément
+pour chaque étage de la cascade plutôt que de réutiliser des features
+gelées, mais cela représente un entraînement bien plus lourd que les MLP
+utilisés ici.
+
+\subsection{Résultats avec ResNet50}
+
+\textbf{Terminé.} Test Acc \textbf{48.50\,\%} (4000 images) -- meilleur que
+la version ViT (42.53\,\%), mais toujours très en retrait par rapport aux
+74\,\% obtenus par l'Approche 2 avec le même backbone en classification
+directe.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/approche7_resnet50_test.png}
+    \caption{Cascade hiérarchique (ResNet50) -- résultat du test final (4000 images), seuil de routage optimisé sur validation.}
+    \label{fig:approche7_resnet50_test}
+\end{figure}
+
+Comme pour ViT, le routage de l'Étape 1 perd une part importante des cas :
+sur les 4000 images de test, 974 (24.35\,\%) changent de groupe à tort
+(890 vraies C/D routées vers A/B, 84 vraies A/B routées vers C/D), pour une
+accuracy de routage globale de 75.65\,\%.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\textwidth]{image/approche7_resnet50_routage.png}
+    \caption{Cascade hiérarchique (ResNet50) -- matrice de routage de l'Étape 1 (A,B vs C,D).}
+    \label{fig:approche7_resnet50_routage}
+\end{figure}
+
+Contrairement à la version ViT, où le maillon faible était le Modèle 2 (A
+vs B, à peine 52.90\,\% isolé), c'est ici le \textbf{Modèle 3 (C vs D)} qui
+pose problème. Le Modèle 2, évalué isolément sur les 400 vraies images A+B
+sans passer par le routage, atteint \textbf{93.50\,\%} -- un score solide,
+bien au-dessus du hasard.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\textwidth]{image/approche7_resnet50_modele2.png}
+    \caption{Cascade hiérarchique (ResNet50) -- Modèle 2 (A vs B) évalué isolément, hors effet du routage.}
+    \label{fig:approche7_resnet50_modele2}
+\end{figure}
+
+Le problème se situe donc plus loin dans la cascade. Ce diagnostic ne
+figure pas directement dans les logs, mais se déduit directement de la
+matrice de confusion globale : une prédiction finale C ou D ne peut provenir
+que d'un item correctement routé vers le groupe (C,D) à l'Étape 1 (le
+groupe (A,B) ne produit jamais ce type de prédiction). En isolant les
+colonnes C et D des lignes C et D de cette matrice, on obtient
+$1394+928=2322$ vraies images C, et $132+256=388$ vraies images D,
+correctement routées -- soit $2322+388=2710$ au total, ce qui recoupe
+exactement la case correspondante de la matrice de routage de l'Étape 1
+(Figure~\ref{fig:approche7_resnet50_routage}). Parmi ces 2710 images, le
+Modèle 3 n'en classe correctement que $1394+256=1650$, soit
+\textbf{60.9\,\%} -- à peine mieux que le hasard sur un problème binaire,
+malgré une accuracy de 84.6\,\% atteinte pendant son propre entraînement
+(30 époques, voir le détail des logs). Cet écart important entre l'accuracy
+d'entraînement et la performance réelle en contexte de cascade est un signe
+de surapprentissage du Modèle 3 sur ses propres données d'entraînement, qui
+ne se traduit pas par une vraie capacité de généralisation sur la
+distinction C/D. Combiné à la perte de routage, ce
+double effet explique le score global modeste : sur les 3600 vraies images
+C/D du test, seulement 1650 (45.83\,\%) ressortent correctement classées de
+bout en bout de la cascade -- moins de la moitié.
+
+Ce résultat, avec l'ordre différent des maillons faibles selon le backbone
+(Modèle 2 pour ViT, Modèle 3 pour ResNet50), confirme le diagnostic déjà
+posé pour ViT : la décomposition hiérarchique n'est pas fiable ici parce que
+chaque étage repose sur des features gelées et un petit MLP, sans
+fine-tuning propre à chaque étage. Le maillon le plus fragile varie d'un
+backbone à l'autre, mais le résultat de bout en bout reste, dans les deux
+cas, nettement inférieur à la classification directe à 4 sorties de
+l'Approche 2 sur ce même backbone.
+
+\section{Approche 8 -- Ensemble par fusion tardive (Approche 2 + Approche 3)}
+\label{sec:approche8}
+
+Les résultats des approches précédentes font apparaître un dilemme : l'Approche 3
+(ResNet50 + Histogramme, vues MLO) atteint la meilleure accuracy globale de tout
+le mémoire (85\,\%) mais ne reconnaît \emph{jamais} la classe A (rappel 0\,\%),
+tandis que l'Approche 2 (ResNet50, fine-tuning direct) est nettement plus faible
+en accuracy globale (74\,\%) mais reconnaît très bien cette même classe A
+(rappel 90\,\%). Plutôt que de choisir arbitrairement entre les deux, on peut
+tester s'il est possible de combiner leurs prédictions pour obtenir un
+compromis meilleur que chacun des deux modèles pris isolément.
+
+\subsection{Méthode}
+
+La technique utilisée est un \textbf{ensemble par fusion tardive}, aussi appelé
+\emph{vote souple} (\emph{soft voting}) ou \emph{late fusion} dans la littérature
+sur l'apprentissage d'ensemble \cite{ref_dietterich}. Contrairement à une
+architecture à double branche comme l'Approche 6 (Section~\ref{sec:approche6}),
+où un unique modèle est entraîné de bout en bout sur les deux sources
+d'information combinées (\emph{fusion précoce}), la fusion tardive combine les
+\textbf{sorties} de deux modèles déjà entraînés \textbf{indépendamment}, sans
+aucun réentraînement : chaque modèle garde son architecture et ses poids
+d'origine, seule l'étape finale de décision est modifiée.
+
+Pour une image $x$, soient $p^{(2)}(x) \in \mathbb{R}^4$ et $p^{(3)}(x) \in
+\mathbb{R}^4$ les vecteurs de probabilités produits par la couche softmax de,
+respectivement, l'Approche 2 et l'Approche 3. La probabilité d'ensemble est
+obtenue par simple moyenne arithmétique :
+\[
+  p_{\text{ens}}(x) = \frac{1}{2}\Big(p^{(2)}(x) + p^{(3)}(x)\Big)
+\]
+et la classe prédite est celle qui maximise cette probabilité combinée :
+\[
+  \hat{y}_{\text{ens}}(x) = \operatorname*{arg\,max}_{c \,\in\, \{A,B,C,D\}} \; p_{\text{ens},c}(x)
+\]
+Il s'agit ici d'un cas particulier non pondéré ($w_1 = w_2 = 0.5$) de la
+formulation générale de la fusion tardive à $K$ modèles,
+$p_{\text{ens}}(x) = \sum_{k=1}^{K} w_k\, p^{(k)}(x)$ avec $\sum_k w_k = 1$ --
+aucune pondération différenciée n'a été testée faute de temps, une piste
+d'amélioration possible étant de calibrer $w_1, w_2$ sur un ensemble de
+validation plutôt que de les fixer à $0.5$ chacun.
+
+Comme l'Approche 3 ne fonctionne que sur les vues MLO, l'évaluation est faite
+sur le sous-ensemble des 2000 images de test correspondant à cette vue (contre
+4000 pour l'évaluation habituelle de l'Approche 2 seule, qui couvre aussi les
+vues CC) -- les deux modèles sont donc comparés sur exactement le même
+sous-ensemble d'images.
+
+\subsection{Résultats}
+
+\textbf{Terminé.} \textbf{Test Acc 80.55\,\%} (1611/2000 images MLO).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/approche8_ensemble_test.png}
+    \caption{Ensemble par fusion tardive (Approche 2 + Approche 3) -- résultat du test final (2000 images, vues MLO).}
+    \label{fig:approche8_ensemble_test}
+\end{figure}
+
+\begin{table}[h]
+\centering
+\caption{Comparaison Approche 2 seule / Approche 3 seule / Ensemble (mêmes 2000 images de test, vues MLO)}
+\begin{tabular}{lrrr}
+\toprule
+ & Approche 2 seule & Approche 3 seule & Ensemble \\
+\midrule
+Accuracy globale & 0.73 & 0.85 & 0.81 \\
+Macro F1 & 0.60 & 0.54 & \textbf{0.62} \\
+Rappel classe A & \textbf{0.90} (9/10) & 0.00 (0/10) & 0.30 (3/10) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+L'ensemble obtient le \textbf{meilleur macro F1 des trois} (0.62) : c'est la
+seule des trois versions qui n'échoue catastrophiquement sur aucune classe.
+Le rappel de la classe A passe de 0\,\% (Approche 3 seule) à 30\,\% -- un gain
+réel, mais qui reste loin des 90\,\% obtenus par l'Approche 2 seule. La raison
+est directe : la moyenne des probabilités est tirée vers le modèle le plus
+confiant sur les gros volumes, à savoir l'Approche 3, qui a appris à ignorer
+presque totalement la classe A. Sur les 10 vraies images A, l'ensemble en
+reconnaît 3 et envoie les 7 autres vers la classe B (voisine en densité,
+jamais vers C ou D) -- une erreur cohérente avec la proximité visuelle réelle
+de A et B, pas un signe d'un modèle qui n'a rien appris.
+L'accuracy globale (80.55\,\%) se situe, sans surprise, entre celle des deux
+modèles pris isolément.
+
+\section{Synthèse comparative : quel est le \og{}meilleur\fg{} modèle ?}
+\label{sec:synthese-comparative}
+
+Les résultats obtenus tout au long de ce chapitre montrent qu'il n'existe pas
+un vainqueur unique parmi les approches testées, mais un arbitrage entre
+trois critères qui ne pointent pas vers le même modèle. Le
+Tableau~\ref{tab:synthese_comparative} résume cet arbitrage sur les
+architectures les plus abouties du mémoire.
+
+\begin{table}[h]
+\centering
+\caption{Synthèse comparative des approches selon trois critères}
+\label{tab:synthese_comparative}
+\begin{tabular}{lrrr}
+\toprule
+Approche & Test Acc & Rappel classe A & Macro F1 \\
+\midrule
+Approche 2 (ResNet50 seul) & 74{,}00\,\% & \textbf{0{,}95} & 0{,}62 \\
+Approche 3 (ResNet50+Histogramme, MLO) & \textbf{85{,}00\,\%} & 0{,}00 & 0{,}54 \\
+Approche 6 -- variante siamoise (EfficientNet-B0, CC+MLO) & \textbf{85{,}00\,\%} & -- & -- \\
+Approche 8 -- Ensemble (Approche 2 + Approche 3) & 80{,}55\,\% & 0{,}30 & \textbf{0{,}62} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Critère 1 -- Accuracy globale}
+Si l'on ne retient que l'exactitude globale, l'Approche 3 (ResNet50 +
+Histogramme, vues MLO) et la variante siamoise de l'Approche 6 arrivent
+en tête, à égalité, avec \textbf{85\,\%} de Test Acc -- les deux meilleurs
+scores de tout le mémoire. C'est le critère le plus intuitif, mais aussi le
+plus trompeur pris isolément : les deux modèles atteignent ce score en
+sacrifiant presque entièrement la classe A (Section~\ref{sec:approche3}),
+la classe minoritaire et cliniquement la plus délicate à repérer.
+
+\subsection{Critère 2 -- Détection de la classe A}
+Si l'on privilégie au contraire la détection de la classe A -- le tissu le
+moins dense, dont la confusion avec les classes voisines a le plus
+d'implications cliniques en dépistage -- l'Approche 2 seule (simple
+fine-tuning direct de ResNet50, sans branche auxiliaire) domine largement
+avec un rappel de \textbf{0{,}95} (19 images sur 20 correctement
+identifiées), très loin devant toutes les architectures à double branche,
+qui échouent toutes sur cette classe (rappel 0\,\%). C'est le résultat le
+plus marquant du mémoire sur ce point précis (voir l'analyse détaillée,
+Section~\ref{sec:approche3} ligne \og{}C'est le résultat le plus
+marquant...\fg{}) : la simplicité de l'architecture semble ici aider le
+réseau à apprendre un signal global (absence de texture dense sur
+l'ensemble du cliché) que les architectures hybrides, focalisées sur la
+fusion de caractéristiques locales, perdent en route.
+
+\subsection{Critère 3 -- Équilibre entre les classes}
+Si l'on cherche un compromis qui n'échoue catastrophiquement sur aucune des
+quatre classes, l'Ensemble par fusion tardive (Approche 8) obtient le
+meilleur macro F1 des trois versions comparées sur le même sous-ensemble
+d'images (0{,}62, à égalité avec l'Approche 2 seule mais avec une accuracy
+globale supérieure). Le rappel de la classe A y remonte à 0{,}30 (3/10),
+un gain réel par rapport à l'Approche 3 seule (0{,}00) même s'il reste loin
+des 0{,}90 de l'Approche 2 seule sur ce même sous-ensemble.
+
+\subsection{Conclusion : pas de modèle \og{}final\fg{} unique}
+Ce chapitre ne désigne donc pas un modèle \og{}gagnant\fg{} au sens
+strict : le choix dépend de l'usage visé. Pour un système d'aide au
+dépistage où manquer un cas de faible densité est plus coûteux qu'une
+fausse alerte, l'Approche 2 seule reste la plus pertinente malgré son
+accuracy globale plus modeste. Pour une estimation générale de la densité
+sur l'ensemble de la population, l'Approche 3 ou la variante siamoise de
+l'Approche 6 restent préférables. C'est cette absence de consensus qui
+motive le choix du modèle utilisé comme point de départ pour
+l'apprentissage fédéré au chapitre suivant : l'Approche 6 est
+structurellement exclue (elle suppose une paire CC+MLO alignée côté client
+H2, que le pipeline fédéré actuel ne construit pas, voir
+Section~\ref{sec:federe}), tandis que les Approches 3, 4 et 5 seraient en
+principe réutilisables (leur branche statistique se calcule sur une seule
+image) mais demanderaient d'ajouter cette branche au modèle fédéré,
+aujourd'hui un ResNet50 nu. Seule l'Approche 2, une architecture à une
+seule branche déjà strictement identique au modèle fédéré existant, est
+réutilisable sans aucune modification -- c'est elle qui est utilisée comme
+point de départ pré-entraîné dans ce mémoire, faute de temps pour
+implémenter les autres.
+
+% ============================================================================
+\chapter{Apprentissage fédéré (FedAvg)}
+\label{sec:federe}
+
+\section{Conception}
+Conformément au sujet du mémoire, une simulation d'apprentissage fédéré a
+été implémentée (\texttt{Codes/federated\_learning/}) suivant l'algorithme
+FedAvg de McMahan et al.\ \cite{ref_fedavg}. L'idée de base est simple : au
+lieu de rassembler toutes les images médicales à un seul endroit pour
+entraîner un modèle, ce qui pose problème pour des données sensibles, on
+envoie le \emph{modèle} chez chaque hôpital. Chaque hôpital l'entraîne chez
+lui sur ses propres images, puis seuls les poids appris, jamais les images,
+sont renvoyés à un serveur central qui les combine.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    scale=0.75, every node/.style={scale=0.75},
+    node distance=1.3cm and 0.5cm,
+    server/.style={rectangle, draw, fill=blue!10, text width=5.8cm, align=center, rounded corners, minimum height=1.1cm, font=\small\bfseries},
+    client/.style={rectangle, draw, fill=green!10, text width=4.2cm, align=center, rounded corners, minimum height=1.1cm, font=\small},
+    arrow/.style={-Stealth, thick, line width=1.2pt},
+    labelstyle/.style={font=\scriptsize, color=black!80, align=center}
+]
+    \node (server) [server] {Serveur central \\ (simulation locale sur le cluster) \\ \textnormal{Agrégation : $W_{t+1} = \sum \frac{n_k}{n} W_t^k$}};
+    \node (client1) [client, below left=of server] {Client H1 \\ VinDr-Mammo (public) \\ \textnormal{6801 images d'entraînement}};
+    \node (client2) [client, below right=of server] {Client H2 \\ DDSM/CBIS-DDSM (public) \\ \textnormal{531 images d'entraînement}};
+    \draw [arrow, color=blue!70!black] (server.west) -| node[labelstyle, left, pos=0.3] {1. Envoi du modèle \\ global ($W_t$)} (client1.north);
+    \draw [arrow, color=blue!70!black] (server.east) -| node[labelstyle, right, pos=0.3] {1. Envoi du modèle \\ global ($W_t$)} (client2.north);
+    \draw [arrow, color=orange!80!black] (client1.south) |- ++(0,-0.8) -| node[labelstyle, left, pos=0.7] {2. Renvoi des poids \\ entraînés ($W_t^1$)} (server.south);
+    \draw [arrow, color=orange!80!black] (client2.south) |- ++(0,-0.8) -| node[labelstyle, right, pos=0.7] {2. Renvoi des poids \\ entraînés ($W_t^2$)} (server.south);
+\end{tikzpicture}
+\caption{Schéma du cycle d'apprentissage fédéré (FedAvg) tel qu'implémenté
+dans ce projet, entre le serveur et les deux clients simulés H1 et H2.}
+\label{fig:diag_apprentissage_federe}
+\end{figure}
+
+\textbf{Précision méthodologique importante.} Le terme \og{}simulation\fg{}
+mérite d'être explicité : dans cette implémentation, l'ensemble du
+protocole tourne sur une \textbf{seule machine physique} (un serveur GPU du
+cluster de l'UMONS), pas sur deux serveurs distincts reliés par le réseau.
+La \og{}fédération\fg{} entre H1 et H2 est obtenue par une simple boucle
+qui traite d'abord les données de H1, puis celles de H2, l'une après
+l'autre, dans le même processus Python -- ce même serveur joue donc
+successivement les trois rôles du protocole (client H1, client H2, puis
+serveur central qui agrège). Ce que le code appelle \og{}envoi\fg{} ou
+\og{}renvoi\fg{} des poids correspond en réalité à des variables Python
+passées en mémoire d'une fonction à l'autre, et non à une vraie
+communication réseau entre machines (pas de \texttt{torch.distributed}, ni
+de sockets, ni de connexion SSH entre serveurs). Le principe mathématique
+de FedAvg (moyenne pondérée des poids de plusieurs clients, sans jamais
+partager les images) est donc bien implémenté et respecté ; c'est
+uniquement l'aspect \og{}deux hôpitaux physiquement séparés\fg{} qui est
+simulé, faute de temps et d'accès à un second serveur dédié pour un
+déploiement réellement distribué. Ce point a été discuté et validé comme
+suffisant pour la démonstration attendue avec notre encadrant, M. Xavier
+Lessage.
+
+\textbf{Client H1} utilise VinDr-Mammo, le même dataset public que pour
+toutes les autres approches du mémoire. \textbf{Client H2} devait à
+l'origine représenter le réseau hospitalier privé HELORA, la cible réelle
+du sujet de mémoire. Ces données n'étant pas accessibles pour cette
+réplication, le dataset public CBIS-DDSM est utilisé à la place, comme
+substitut technique. Ce choix n'est pas anodin : les deux datasets ont une
+répartition de classes très différente (VinDr-Mammo est dominé par Density
+C, alors que CBIS-DDSM est beaucoup plus équilibré, avec A=127, B=450,
+C=465, D=329 sur 1371 images résolues). Cela recrée artificiellement une
+situation proche de deux vrais hôpitaux avec des populations de patientes
+différentes.
+
+Le modèle utilisé est un simple ResNet50, une seule branche, sans
+histogramme ni GLCM contrairement aux approches précédentes. Le protocole
+FedAvg exige en effet que le modèle soit identique chez tous les clients ;
+or le client H1 (\texttt{VinDrCCDataset}) est restreint aux vues CC par
+construction, alors que le client H2 (\texttt{DDSMDataset}) ne filtre pas
+par vue et mélange donc CC et MLO. Toutes les architectures explorées dans
+ce mémoire ne sont pas concernées de la même façon par cette contrainte :
+l'Approche 6 (et ses variantes) est structurellement exclue, puisqu'elle
+suppose une paire CC+MLO alignée par sein, que le pipeline fédéré actuel
+ne construit pas. Les Approches 3, 4 et 5, en revanche, n'ont pas besoin
+d'une seconde vue -- leur branche histogramme/GLCM est calculée à partir de
+la \emph{même} image que la branche CNN (voir
+\texttt{HybridMammographyDataset.\_\_getitem\_\_}), pas d'une image
+appariée. Rien n'empêche donc, en principe, de fédérer une architecture de
+ce type, à condition (i) d'ajouter la branche statistique au modèle
+fédéré, actuellement un ResNet50 nu, et (ii) de filtrer les deux clients
+sur la même vue (par exemple MLO des deux côtés, ce que \texttt{DDSMDataset}
+ne fait pas aujourd'hui). C'est une limite d'implémentation actuelle, pas
+une impossibilité de principe -- une piste réaliste pour une itération
+future de cette expérience plutôt que pour ce mémoire, faute de temps.
+
+\section{Algorithme}
+\begin{algorithm}[h]
+\caption{FedAvg -- apprentissage fédéré entre les clients H1 et H2}
+\begin{algorithmic}[1]
+\Procedure{ServeurFedAvg}{}
+  \State Initialiser les poids globaux $W_0$ (ResNet50, ImageNet)
+  \For{chaque round $t = 1, \dots, T$}
+    \For{chaque client $k \in \{\text{H1}, \text{H2}\}$}
+      \State $W_t^k \gets$ \Call{ClientUpdate}{$k$, $W_{t-1}$}
+    \EndFor
+    \State $W_t \gets \sum_{k} \dfrac{n_k}{n}\, W_t^k$
+    \Comment{agrégation pondérée par la taille locale $n_k$}
+  \EndFor
+  \State \Return $W_T$
+\EndProcedure
+\Statex
+\Procedure{ClientUpdate}{$k$, $W$}
+  \For{chaque époque locale $e = 1, \dots, E$}
+    \For{chaque mini-lot $b$ du client $k$}
+      \State $W \gets W - \eta \nabla_W \mathcal{L}(W; b)$
+    \EndFor
+  \EndFor
+  \State \Return $W$ au serveur
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+où $n_k$ est le nombre d'exemples d'entraînement du client $k$ et
+$n = \sum_k n_k$. Dans notre implémentation, $E{=}1$ époque locale par round
+est utilisée par défaut, ce qui rapproche le protocole d'une moyenne de
+gradients quasi-synchrone plutôt que d'un fédéré à fort déséquilibre de
+calcul local. Ce choix est motivé par la taille modeste des deux jeux de
+données et le temps disponible.
+
+\section{État d'avancement}
+Le code est complet et a été testé localement : l'agrégation FedAvg a été
+vérifiée mathématiquement (moyenne pondérée reproduite exactement sur un
+cas de test synthétique), et le chargement des deux jeux de données a été
+vérifié de bout en bout (lecture DICOM, prétraitement, batching).
+L'entraînement a été lancé sur le cluster (GPU2 de deep2) le 4 août 2026, avec
+$H1$ = 6801 images d'entraînement (VinDr-Mammo) et $H2$ = 531 images
+(DDSM/CBIS-DDSM). Les 15 rounds prévus ont été menés à terme : chaque round
+complet (2 \texttt{ClientUpdate} + agrégation + évaluation) a pris plusieurs
+heures du fait de la lecture DICOM via NFS, voir contrainte de temps
+discutée plus haut dans ce document.
+
+\begin{table}[h]
+\centering
+\caption{Résultats FedAvg (E=1, 15 rounds) -- accuracy et loss de validation
+par round}
+\label{tab:federated_e3}
+\begin{tabular}{lrrrrrr}
+\toprule
+Round & \multicolumn{3}{c}{Val Acc} & \multicolumn{3}{c}{Val Loss} \\
+ & H1-VinDr & H2-DDSM & Global & H1-VinDr & H2-DDSM & Global \\
+\midrule
+1 & 65.33\% & 31.18\% & \textbf{62.86\%} & 0.7483 & 2.1213 & \textbf{0.8477} \\
+2 & 60.33\% & 38.71\% & \textbf{58.77\%} & 0.8005 & 1.5975 & \textbf{0.8582} \\
+3 & 70.08\% & 27.96\% & \textbf{67.03\%} & 0.6070 & 1.8421 & \textbf{0.6965} \\
+4 & 75.25\% & 32.26\% & \textbf{72.14\%} & 0.5471 & 1.8859 & \textbf{0.6441} \\
+5 & 59.75\% & 31.18\% & \textbf{57.68\%} & 0.9390 & 2.4917 & \textbf{1.0515} \\
+6 & 74.33\% & 32.26\% & \textbf{71.29\%} & 0.5645 & 2.5631 & \textbf{0.7092} \\
+7 & 61.33\% & 39.78\% & \textbf{59.77\%} & 0.8758 & 1.5269 & \textbf{0.9229} \\
+8 & 62.50\% & 34.41\% & \textbf{60.47\%} & 0.8003 & 2.8950 & \textbf{0.9520} \\
+9 & 64.42\% & 27.96\% & \textbf{61.78\%} & 0.7389 & 3.1998 & \textbf{0.9171} \\
+10 & 71.00\% & 29.03\% & \textbf{67.96\%} & 0.5909 & 3.5098 & \textbf{0.8023} \\
+11 & 70.25\% & 32.26\% & \textbf{67.50\%} & 0.6106 & 2.7237 & \textbf{0.7637} \\
+12 & 69.92\% & 30.11\% & \textbf{67.03\%} & 0.5965 & 2.7623 & \textbf{0.7534} \\
+13 & 69.92\% & 27.96\% & \textbf{66.88\%} & 0.6083 & 3.5827 & \textbf{0.8237} \\
+14 & \textbf{78.67\%} & \textbf{41.94\%} & \textbf{76.01\%} & 0.4621 & 2.1410 & \textbf{0.5837} \\
+15 & 70.83\% & 27.96\% & \textbf{67.73\%} & 0.6162 & 4.4000 & \textbf{0.8902} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{image/federated_rounds_accuracy.png}
+    \caption{Évolution de l'accuracy de validation par round FedAvg (Global,
+    H1-VinDr, H2-DDSM).}
+    \label{fig:federated_rounds_accuracy}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{image/federated_rounds_loss.png}
+    \caption{Évolution de la loss de validation par round FedAvg (Global,
+    H1-VinDr, H2-DDSM).}
+    \label{fig:federated_rounds_loss}
+\end{figure}
+
+L'écart entre les deux clients dès le premier round (65.33\,\% contre
+31.18\,\%) est cohérent avec l'hétérogénéité non-IID volontairement
+introduite entre les deux sources : $H2$ ne dispose que de 531 images
+d'entraînement, contre 6801 pour $H1$, et présente une distribution de
+densité différente, plus équilibrée que VinDr-Mammo (voir
+Chapitre~\ref{sec:federe}). C'est précisément ce type d'écart que le
+protocole FedAvg cherche à réduire au fil des rounds, en construisant un
+modèle global qui profite de l'exposition aux deux distributions plutôt
+qu'à une seule.
+
+Le constat le plus net sur l'ensemble des 15 rounds n'est pas une
+convergence progressive, mais un \textbf{verrouillage quasi total du score
+global sur $H1$}. En comparant round par round la colonne \og{}Global\fg{}
+à la colonne \og{}H1-VinDr\fg{} du Tableau~\ref{tab:federated_e3},
+l'écart entre les deux reste remarquablement
+constant, entre $-1.6$ et $-3.1$ points, à chacun des 15 rounds, quelle que
+soit l'amplitude des variations par ailleurs (Round 1 : 65.33\,\% $\to$
+62.86\,\%, écart $-2.47$ ; Round 4 : 75.25\,\% $\to$ 72.14\,\%, écart
+$-3.11$ ; Round 14 : 78.67\,\% $\to$ 76.01\,\%, écart $-2.66$). Ce n'est pas
+une coïncidence : la métrique \og{}Global\fg{} elle-même est une moyenne
+pondérée $\text{acc}_{H1} \cdot \frac{n_{H1}}{n} + \text{acc}_{H2} \cdot
+\frac{n_{H2}}{n}$, avec $n_{H1}/n \approx 93\,\%$. Le score global n'est
+donc, par construction, presque rien d'autre qu'une version légèrement
+abaissée du score $H1$ -- la contribution de $H2$ (7\,\% du poids) ne peut
+mécaniquement pas déplacer le score global de plus de quelques points,
+même quand $H2$ varie fortement (de 27.96\,\% à 41.94\,\% selon les
+rounds).
+
+Le même phénomène se retrouve dans l'agrégation des poids eux-mêmes ($W_{t+1}
+= \sum_k \frac{n_k}{n} W_t^k$) : le modèle global ressemble
+presque uniquement au modèle entraîné par $H1$ à chaque round, et n'intègre
+que marginalement ce que $H2$ a appris localement. C'est la raison
+structurelle pour laquelle $H2$ n'affiche, sur l'ensemble des 15 rounds,
+aucune tendance claire à l'amélioration : son accuracy oscille sans
+direction (31.18\,\%, 38.71\,\%, 27.96\,\%, 32.26\,\%, ..., jusqu'à un pic
+isolé de 41.94\,\% au Round 14) plutôt que de converger, puisque le modèle
+qu'il reçoit à chaque round est presque entièrement façonné par $H1$.
+
+Le score $H1$ (et donc le score global) lui-même n'est pas stable : il
+varie entre 59.75\,\% (Round 5) et 78.67\,\% (Round 14), sans palier net.
+Avec $E{=}1$ seule époque locale par round, le modèle repart d'une remise à
+zéro locale à chaque round puis n'a qu'une seule passe sur les données
+avant d'être renvoyé et remoyenné -- ce qui laisse peu de temps pour
+converger proprement d'un round à l'autre et explique cette instabilité
+(par exemple Round 4 à 75.25\,\% suivi d'une chute au Round 5 à 59.75\,\%).
+Le \textbf{Round 14 est le meilleur de toute la simulation} (H1 78.67\,\%,
+H2 41.94\,\%, Global 76.01\,\%) et c'est donc son modèle
+(\texttt{federated\_global\_best.pth}) qui est retenu pour l'évaluation
+finale sur le jeu de test (Section~\ref{sec:federe-baseline} ci-dessous).
+
+Ce résultat pointe vers deux limites structurelles de cette première
+configuration (E=1, pas de plancher de poids pour $H2$) plutôt que vers un
+simple manque de rounds : une seule époque locale ne laisse pas au modèle
+le temps de converger avant chaque agrégation, et le poids proportionnel
+au nombre d'images ($n_k/n$) rend le score global -- et le modèle lui-même
+-- presque insensible à ce que $H2$ apprend. Ce sont exactement les deux
+pistes testées dans le run suivant (E=6 époques locales, et un poids
+plancher de 25\,\% garanti à $H2$ dans l'agrégation, voir
+Section~\ref{sec:federe-e6} ci-dessous).
+
+\section{Comparaison avec une baseline centralisée}
+\label{sec:federe-baseline}
+
+Pour juger si la contrainte de fédération coûte réellement de la
+performance, une baseline centralisée a été entraînée : les deux jeux de
+données ($H1$ = VinDr-Mammo, $H2$ = DDSM/CBIS-DDSM) sont regroupés dans un
+seul entraînement classique (5 époques), sans aucune séparation entre
+clients ni agrégation. Le modèle FedAvg final (meilleur round, le Round 14
+du Tableau~\ref{tab:federated_e3}) a lui aussi été évalué sur les mêmes
+jeux de \emph{test} réservés de chaque source, ce qui permet une
+comparaison directe, homogène, plutôt qu'un rapprochement approximatif
+entre une accuracy de test et une accuracy de validation.
+
+\begin{table}[h]
+\centering
+\caption{Baseline centralisée vs. FedAvg (E=1, 15 rounds) -- résultats sur les jeux de test}
+\label{tab:federated_vs_centralized}
+\begin{tabular}{lrrr}
+\toprule
+Source & Baseline centralisée & FedAvg (E=1, Round 14) & Support \\
+\midrule
+VinDr-Mammo & \textbf{82.30\,\%} & 81.60\,\% & 2000 images \\
+DDSM/CBIS-DDSM & 31.17\,\% & \textbf{38.31\,\%} & 154 images \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Le résultat est plus favorable à la fédération que ce que suggérait
+l'ancienne comparaison (validation vs. test) : sur VinDr, l'écart entre
+FedAvg et la baseline centralisée n'est que de 0.70 point (82.30\,\% contre
+81.60\,\%) -- un coût de fédération quasi négligeable dans cette
+configuration, bien loin de ce qu'on pourrait craindre a priori. Sur DDSM,
+FedAvg fait même \textbf{mieux} que le centralisé (38.31\,\% contre
+31.17\,\%, soit +7.14 points). Ce dernier point mérite d'être nuancé : le
+jeu de test DDSM ne compte que 154 images, donc cet écart doit être lu avec
+prudence plutôt que comme une preuve définitive que la fédération
+\og{}aide\fg{} structurellement DDSM ; il montre au minimum que la
+fédération n'impose pas ici de coût de performance sur ce client, contrairement à
+l'hypothèse initiale.
+
+Cette comparaison répond directement à la question de notre encadrant
+(\og{}est-ce que ça a permis d'avoir de meilleurs résultats ?\fg{}) : dans
+cette première configuration (E=1, sans poids plancher), FedAvg n'apporte
+pas de gain net mesurable sur VinDr par rapport au centralisé, mais ne
+coûte pas non plus grand-chose -- et fait mieux sur DDSM. La vraie valeur
+de l'apprentissage fédéré ici n'est donc pas un gain de performance brute,
+mais la capacité à entraîner un modèle exploitant les deux sources
+\emph{sans jamais centraliser les images}, ce qui reste le problème que
+FedAvg est censé résoudre en premier lieu (voir la motivation de
+confidentialité, Section~\ref{sec:etat-art-federe}).
+
+\section{Point de départ pré-entraîné (Approche 2) plutôt qu'ImageNet}
+\label{sec:federe-pretrained}
+
+Notre encadrant a insisté sur un point méthodologique important : avant de
+faire de l'apprentissage fédéré, il faut déjà disposer d'un modèle qui
+fonctionne bien, et tester si possible FedAvg à partir de ce meilleur
+modèle plutôt que de partir de zéro. Comme discuté en
+Section~\ref{sec:synthese-comparative}, aucune de nos meilleures approches
+(Approche 3, Approche 6) n'est directement réutilisable comme socle fédéré
+-- seule l'Approche 2 (ResNet50, une seule branche) partage l'architecture
+exigée par le protocole fédéré actuel. Un second run a donc été lancé,
+strictement identique au premier (E=1, 15 rounds, pas de poids plancher),
+mais en initialisant $W_0$ avec les poids déjà fine-tunés de l'Approche 2
+sur VinDr-Mammo (74\,\% Test Acc en seul, Section~\ref{sec:approche2})
+plutôt qu'avec des poids ImageNet bruts.
+
+\begin{table}[h]
+\centering
+\caption{FedAvg (E=1, 15 rounds) -- ImageNet vs. poids pré-entraînés
+(Approche 2), résultats sur le jeu de test}
+\label{tab:federated_pretrained}
+\begin{tabular}{lrrrr}
+\toprule
+ & VinDr Test Acc & VinDr Macro F1 & VinDr Rappel A & DDSM Test Acc \\
+\midrule
+$W_0$ = ImageNet & 81.60\,\% & 0.57 & 10\,\% (1/10) & \textbf{38.31\,\%} \\
+$W_0$ = Approche 2 & \textbf{81.80\,\%} & \textbf{0.66} & \textbf{60\,\% (6/10)} & 32.47\,\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Le résultat est un vrai compromis, pas un gain net dans un sens ou dans
+l'autre. Sur VinDr, l'accuracy globale ne bouge presque pas (81.60\,\%
+$\to$ 81.80\,\%), mais l'\textbf{équilibre entre classes s'améliore
+nettement} : le macro F1 passe de 0.57 à 0.66, porté surtout par un rappel
+de la classe A qui bondit de 10\,\% (1/10) à 60\,\% (6/10) -- cohérent avec
+le fait que l'Approche 2 est justement, dans tout ce mémoire, le modèle le
+plus fort sur cette classe précise (rappel 0.95 en seul,
+Section~\ref{sec:approche2}) ; une partie de cette force semble transférée
+au modèle fédéré malgré les 15 rounds d'agrégation qui suivent. En
+revanche, sur DDSM, c'est une régression : 38.31\,\% $\to$ 32.47\,\%. Partir
+de poids entraînés uniquement sur VinDr n'aide pas -- et gêne même
+légèrement -- la généralisation vers DDSM, dont la distribution d'image
+est différente (mammographie numérique native contre films argentiques
+numérisés, voir Chapitre~\ref{sec:federe}).
+
+Ce résultat illustre bien pourquoi il ne faut pas s'attendre à un gain
+uniforme : partir du \og{}meilleur\fg{} modèle compatible améliore la
+robustesse du modèle fédéré sur le client dont il est issu (VinDr, et
+spécifiquement sa classe la plus difficile), sans pour autant garantir de
+meilleurs résultats sur l'autre client. Avec 154 images de test côté DDSM
+(dont seulement 15 en classe A côté VinDr), ces écarts doivent être lus
+avec la prudence habituelle sur de petits effectifs, mais la direction du
+compromis (VinDr mieux équilibré, DDSM moins bon) est cohérente entre
+validation et test et ne semble donc pas être un simple artefact de bruit.
+
+\subsection{Comparaison directe avec l'Approche 2 seule, à jeu de test identique}
+
+L'Approche 2 seule affiche 74\,\% de Test Acc (Section~\ref{sec:approche2}).
+Ce chiffre porte sur 4000 images, CC et MLO mélangées. Le modèle fédéré, lui,
+n'entraîne et n'évalue que sur des vues CC -- 2000 images. Comparer 74\,\%
+à 81.60\,\% ou 81.80\,\% reviendrait donc à comparer deux épreuves
+différentes.
+
+Le checkpoint de l'Approche 2 a été réévalué sur ces mêmes 2000 images CC,
+rien de plus qu'une passe d'inférence sur le modèle déjà entraîné. Le score
+tombe à \textbf{75.40\,\%}. C'est ce chiffre qu'il faut opposer aux résultats
+fédérés, pas le 74\,\% d'origine.
+
+\begin{table}[h]
+\centering
+\caption{Test Acc sur le même jeu de 2000 images CC -- Approche 2 seule vs. FedAvg}
+\label{tab:federated_vs_approche2_cc}
+\begin{tabular}{lr}
+\toprule
+Modèle & Test Acc (2000 img CC) \\
+\midrule
+Approche 2 seule (sans fédération) & 75.40\,\% \\
+FedAvg E=3, $W_0$ = ImageNet & 81.60\,\% \\
+FedAvg E=3, $W_0$ = Approche 2 & \textbf{81.80\,\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Sur ce jeu de test identique, FedAvg dépasse l'Approche 2 seule de 6.20 à
+6.40 points. C'est la réponse à la question posée par notre encadrant :
+oui, la fédération fait mieux que le meilleur modèle compatible entraîné
+seul, sur cette même donnée de test.
+
+Le rappel de la classe A grimpe à 100\,\% (10/10) pour l'Approche 2 seule
+sur ce sous-ensemble CC, contre 95\,\% sur les 4000 images complètes. Dix
+images, c'est peu. Un score parfait sur un effectif aussi petit se lit avec
+prudence, mais confirme la même tendance observée partout ailleurs dans ce
+mémoire : cette architecture reconnaît bien la classe A.
+
+\section{Davantage d'époques locales et poids plancher pour H2 (E=6, 17 rounds)}
+\label{sec:federe-e6}
+
+Un troisième run, combinant les deux autres pistes identifiées plus haut
+(Section~\ref{sec:federe-baseline}) -- davantage d'époques locales par
+round ($E{=}6$ au lieu de $E{=}1$) et un poids plancher de 25\,\% garanti à
+$H2$ dans l'agrégation (\texttt{min\_weight=0.25}), indépendamment de son
+nombre réel d'images -- a été lancé sur 17 rounds. \todo{Run en cours au
+moment de la rédaction (Round 9/17 atteint) -- compléter cette section avec
+le tableau round par round et l'évaluation finale sur le jeu de test une
+fois les 17 rounds terminés.}
+
+% ============================================================================
+\chapter{Interprétabilité et visualisation du modèle}
+\label{sec:interpretabilite}
+
+Lors du point d'avancement avec notre encadrant, celui-ci a insisté sur un
+point : un chiffre d'accuracy seul ne suffit pas à convaincre un jury. Il
+faut pouvoir montrer que l'espace de représentation appris par le réseau
+organise réellement les quatre classes de densité de façon cohérente, et
+que les prédictions s'appuient sur des zones anatomiquement pertinentes du
+cliché plutôt que sur des artefacts -- fond noir, pli de peau, ou pire, la
+présence d'une anomalie. Deux techniques complémentaires répondent à cette
+double exigence : une visualisation t-SNE de l'espace latent, pour la
+structure globale sur l'ensemble du jeu de test, et une analyse Grad-CAM au
+niveau pixel, pour une explication locale image par image.
+
+Le modèle retenu pour cette analyse est l'Approche 3 (ResNet50 +
+Histogramme, vues MLO) : c'est le meilleur résultat obtenu sur l'ensemble
+du mémoire (Test Acc 85\,\%, Section~\ref{sec:approche3}), et son backbone
+CNN se prête naturellement à Grad-CAM, qui a besoin d'une carte
+d'activation spatiale issue d'une couche convolutionnelle -- contrairement
+à un ViT, où la même analyse demanderait une méthode adaptée à
+l'attention plutôt qu'à la convolution.
+
+\section{Visualisation de l'espace latent par réduction de dimension (t-SNE)}
+\label{sec:tsne}
+
+Le vecteur de caractéristiques produit par la branche image, juste avant la
+couche de classification, vit dans un espace de plusieurs centaines de
+dimensions -- impossible à représenter tel quel. La technique t-SNE
+(\emph{t-distributed Stochastic Neighbor Embedding}) \cite{ref_tsne}
+projette ce nuage de points de haute dimension dans un plan 2D, en cherchant
+à préserver au mieux les relations de voisinage entre points proches dans
+l'espace d'origine. Concrètement, pour chaque image du jeu de test, on
+extrait le vecteur produit par l'avant-dernière couche du réseau via un
+\emph{hook} PyTorch placé sur la couche cible (voir
+\texttt{Codes/interpretability\_analysis.py}). L'ensemble de ces vecteurs
+est ensuite projeté en 2D avec la bibliothèque scikit-learn.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{image/tsne_approche3_resnet50_mlo.png}
+    \caption{Visualisation t-SNE des caractéristiques apprises par le modèle
+    retenu (Approche 3, ResNet50 + Histogramme, MLO). Chaque point représente
+    une mammographie du jeu de test projetée dans l'espace latent 2D,
+    colorée selon sa classe de densité réelle (300 images échantillonnées
+    aléatoirement, seed=42).}
+    \label{fig:tsne}
+\end{figure}
+
+Si le modèle a effectivement appris une représentation utile de la densité,
+on s'attend à une organisation continue de l'espace projeté : les
+échantillons de la classe A (tissu adipeux) devraient occuper une zone
+plutôt séparée des échantillons D (tissu extrêmement dense), avec les
+classes B et C dans une position intermédiaire. Il n'y a pas forcément de
+frontière nette entre elles, puisque la densité mammaire est par nature un
+continuum plutôt que quatre catégories parfaitement disjointes. À
+l'inverse, un nuage de points totalement mélangé, sans structure
+identifiable, indiquerait que l'espace de représentation appris par le
+réseau ne capture pas l'information de densité.
+
+Dans les faits, la projection montre une organisation partielle plutôt
+qu'un mélange complet. La classe B forme un groupe assez net et bien
+séparé du reste, en haut de la projection. La classe D occupe
+majoritairement une zone distincte en bas à gauche, mais plusieurs de ses
+points se retrouvent isolés loin à l'intérieur de la zone dominée par C --
+cohérent avec la confusion C/D déjà observée dans les matrices de
+confusion de ce mémoire. La classe C, très majoritaire dans le jeu de
+données, occupe naturellement une large portion de l'espace.
+
+La classe A, elle, n'apparaît qu'à travers un unique point sur toute la
+projection. Ce n'est pas un défaut du modèle mais un effet direct de sa
+rareté : avec seulement une dizaine d'images de cette classe dans les 2000
+images de test, un échantillon aléatoire de 300 images n'en retient
+presque jamais plus d'une ou deux. Il est donc impossible de tirer une
+conclusion sur la façon dont le modèle organise cette classe à partir de
+cette seule figure -- c'est une limite liée à la disponibilité des
+données, pas une observation à interpréter.
+
+\subsection{Comparaison complémentaire : train vs test}
+
+En complément de la figure précédente, le même t-SNE a été ajusté
+conjointement sur un échantillon du \textbf{train} et un échantillon du
+\textbf{test} (300 images de chaque, projetées dans le même espace 2D),
+pour vérifier si le modèle organise l'espace latent de la même façon sur
+les deux, ou si le test forme des zones à part -- signe d'un décalage de
+distribution ou d'un surapprentissage sur le train.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{image/tsne_approche3_resnet50_mlo_traintest.png}
+    \caption{Même visualisation t-SNE que la Figure~\ref{fig:tsne}, avec en
+    plus un échantillon du train projeté dans le même espace 2D. La couleur
+    encode toujours la classe de densité réelle ; la transparence encode le
+    split (train = clair, test = foncé) -- 300 images de chaque split,
+    seed=42.}
+    \label{fig:tsne_traintest}
+\end{figure}
+
+Le point le plus rassurant de cette figure est que, à l'intérieur d'une
+même classe, les points clairs (train) et foncés (test) occupent
+globalement les \textbf{mêmes régions} de l'espace projeté, sans zone de
+test isolée à l'écart du nuage d'entraînement. C'est le signe attendu d'un
+modèle qui généralise correctement -- s'il avait mémorisé le train plutôt
+qu'appris une notion générale de densité, on s'attendrait à voir les deux
+splits former des amas séparés, même à l'intérieur d'une classe donnée.
+
+\section{Analyse de l'interprétabilité clinique (Grad-CAM)}
+\label{sec:gradcam}
+
+\subsection{Motivation}
+
+Un réseau de neurones profond reste, par construction, une boîte noire : on
+observe la prédiction en sortie sans savoir sur quelles zones de l'image
+elle s'appuie réellement. Pour un usage clinique, cette opacité pose un
+vrai problème de confiance -- un radiologue ne peut pas se fier à un outil
+dont il ignore s'il se base sur le tissu mammaire ou sur un artefact de
+numérisation. C'est exactement le risque soulevé par notre encadrant : si
+le modèle apprenait à estimer la densité en s'appuyant en partie sur la
+présence d'une anomalie, bénigne ou maligne, plutôt que sur la texture du
+parenchyme sain, la mesure de densité perdrait tout son sens clinique,
+puisque densité et détection d'anomalie sont deux tâches bien distinctes.
+
+L'algorithme Grad-CAM (\emph{Gradient-weighted Class Activation Mapping}),
+proposé par Selvaraju \textit{et al.} \cite{ref_gradcam}, répond à cette
+question en générant une carte de chaleur superposée à l'image d'origine,
+qui indique les régions ayant le plus contribué à la décision du réseau
+pour une classe donnée. Cette approche a déjà été appliquée avec succès à
+l'analyse de mammographies dans plusieurs travaux récents
+\cite{ref_gradcam_mammo1, ref_gradcam_mammo2}, ce qui conforte le choix de
+cette méthode plutôt que, par exemple, une approche par occlusion,
+beaucoup plus coûteuse en temps de calcul.
+
+\subsection{Formulation mathématique}
+
+Pour une classe cible $c$, soit $A^k$ la carte d'activation du $k$-ième
+filtre de la dernière couche convolutive et $y^c$ le score (le logit, avant
+la fonction Softmax) attribué par le réseau à la classe $c$. L'importance de
+chaque filtre pour cette classe s'obtient en moyennant spatialement le
+gradient du score par rapport à la carte d'activation correspondante :
+\begin{equation}
+    \alpha_k^c = \frac{1}{Z} \sum_{i=1}^{H} \sum_{j=1}^{W} \frac{\partial y^c}{\partial A_{i,j}^k}
+\end{equation}
+où $Z = H \times W$ est la dimension spatiale de la carte d'activation. La
+carte de chaleur finale est la combinaison linéaire des cartes d'activation
+pondérées par ces coefficients, suivie d'une ReLU pour ne conserver que les
+contributions qui renforcent la classe cible :
+\begin{equation}
+    L_{\text{Grad-CAM}}^c = \text{ReLU}\left( \sum_k \alpha_k^c A^k \right)
+\end{equation}
+Cette carte a la taille de la dernière couche convolutive, typiquement
+$7 \times 7$ pour les backbones utilisés dans ce projet. Elle est ensuite
+ré-échantillonnée par interpolation bilinéaire à la taille de l'image
+d'entrée, pour être superposée au cliché original. L'implémentation
+utilisée ici (\texttt{Codes/interpretability\_analysis.py}, classe
+\texttt{GradCAM}) repose sur les \emph{hooks} PyTorch, un mécanisme qui
+permet d'intercepter les activations et les gradients d'une couche donnée
+pendant les passes avant et arrière du réseau, sans modifier l'architecture
+du modèle.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.98\textwidth]{image/gradcam_approche3_resnet50_mlo.png}
+    \caption{Grad-CAM sur le modèle retenu (Approche 3, ResNet50 +
+    Histogramme, MLO) : trois exemples par classe de densité (au lieu d'un
+    seul), pour vérifier la stabilité du comportement du modèle plutôt que
+    de se fier à un seul cas potentiellement non représentatif. Pour
+    chaque exemple, l'image originale est suivie de sa carte de chaleur
+    Grad-CAM correspondante. Colorbar verticale commune à toute la figure.}
+    \label{fig:gradcam}
+\end{figure}
+
+Précision méthodologique importante pour la lecture de cette figure : pour
+chaque image, le calcul du gradient est forcé sur la \emph{vraie} classe de
+l'image (et non sur la classe que le modèle aurait spontanément prédite).
+Le pourcentage affiché dans chaque sous-titre est donc la probabilité que
+le modèle attribue à la bonne réponse, pas nécessairement sa prédiction la
+plus probable -- une nuance essentielle pour les images de la classe A
+ci-dessous.
+
+\subsection{Points de vigilance à vérifier sur le modèle final}
+
+Notre encadrant avait relevé deux éléments lors d'une analyse Grad-CAM
+préliminaire menée sur une architecture antérieure (RexNet-150 sur vues
+MLO, en dehors du présent projet). Il faudra les vérifier à nouveau une
+fois la même analyse reproduite sur le modèle actuel :
+\begin{itemize}
+    \item pour la classe A, la carte de chaleur tendait par moments à
+    réagir sur le fond noir de l'image ou sur un pli de peau plutôt que sur
+    le tissu mammaire lui-même -- un recadrage plus strict avant le passage
+    dans le réseau pourrait limiter ce biais ;
+    \item il faut s'assurer que le modèle ne s'appuie pas sur la présence
+    d'une anomalie (bénigne ou maligne) pour estimer la densité. Une
+    vérification possible, si le temps le permet, consisterait à évaluer le
+    modèle spécifiquement sur un sous-ensemble d'images classées BI-RADS 1-2
+    (négatives) et à comparer les cartes obtenues à celles d'images
+    contenant une anomalie confirmée.
+\end{itemize}
+
+Sur le premier point, la figure obtenue est plutôt rassurante : pour les
+quatre classes, les zones d'activation (rouge/jaune) restent concentrées
+sur le tissu mammaire lui-même, en particulier autour du mamelon et des
+régions les plus claires du cliché -- aucune des quatre cartes ne réagit
+de façon marquée sur le fond noir. Le second point, en revanche, demanderait
+la comparaison systématique proposée ci-dessus (BI-RADS négatif vs positif)
+pour être tranché avec certitude ; faute de temps, il reste une piste à
+explorer plutôt qu'une conclusion établie ici.
+
+Classe par classe, sur les trois exemples testés : la classe \textbf{A}
+présente systématiquement une activation étalée sur une large portion du
+sein plutôt qu'un foyer localisé, et surtout une probabilité assignée à la
+bonne classe très basse sur les trois cas (4.8\,\%, 6.1\,\%, 2.7\,\%) -- le
+modèle est ici franchement et \emph{constamment} dans l'erreur, cohérent
+avec le rappel quasi nul déjà observé sur cette classe tout au long du
+mémoire (Section~\ref{sec:test-seuil-a}). La classe \textbf{C} montre un
+foyer d'activation localisé et très stable, centré sur la masse de tissu
+dense près du mamelon, avec une probabilité correcte quasiment identique
+sur les trois exemples (48.7\,\%, 49.3\,\%, 47.8\,\%). La classe \textbf{B}
+présente elle aussi un foyer localisé, avec une probabilité correcte plus
+variable (48.3\,\%, 43.8\,\%, 78.8\,\%), mais toujours supérieure à 40\,\%.
+
+La classe \textbf{D} est la plus instructive des quatre une fois plusieurs
+exemples comparés : les deux premiers cas donnent un foyer concentré sur la
+zone dense avec une probabilité correcte raisonnable (39.4\,\% et
+42.9\,\%), mais le troisième s'effondre à seulement 2.3\,\% -- une
+instabilité totalement invisible sur la version à un seul exemple par
+classe utilisée précédemment. C'est exactement l'intérêt d'étendre cette
+analyse à plusieurs exemples : un seul cas, choisi par hasard, aurait pu
+donner une impression de fiabilité pour la classe D, alors qu'un exemple
+sur trois révèle une erreur franche. Dans l'ensemble, le modèle s'appuie
+sur les bonnes structures anatomiques (le tissu fibro-glandulaire, plus
+clair sur le cliché) pour les classes B, C et D, avec une localisation de
+l'activation cohérente d'un exemple à l'autre -- mais son niveau de
+confiance sur D n'est pas garanti d'une image à l'autre, contrairement à C.
+La classe A, elle, reste peu fiable de façon constante -- ce qui confirme,
+au niveau visuel cette fois, un problème déjà identifié statistiquement
+partout ailleurs dans ce mémoire : le manque de données pour cette classe
+limite sa capacité d'apprentissage, indépendamment de l'architecture
+utilisée.
+
+\vspace{0.3cm}
+\noindent\textit{Note pour la bibliographie (\texttt{.bib}) :} les clés
+utilisées ci-dessus correspondent aux références suivantes, à ajouter si
+elles n'existent pas déjà dans le fichier de bibliographie du mémoire :
+\texttt{ref\_gradcam} = Selvaraju et al., \emph{Grad-CAM: Visual Explanations
+from Deep Networks via Gradient-based Localization}, ICCV 2017
+(arXiv:1610.02391) ; \texttt{ref\_tsne} = van der Maaten \& Hinton,
+\emph{Visualizing Data using t-SNE}, JMLR 2008 ;
+\texttt{ref\_gradcam\_mammo1} = Al Mansour et al. (ou titre exact de l'article
+EfficientNetV2 + Grad-CAM++), Diagnostics 2026, \url{mdpi.com/2075-4418/16/1/105} ;
+\texttt{ref\_gradcam\_mammo2} = Talaat et al., \emph{Grad-CAM Enabled Breast
+Cancer Classification with a 3D Inception-ResNet V2}, Cancers 2024,
+\url{mdpi.com/2072-6694/16/21/3668}.
+
+\section{Précision et rappel de la classe A en fonction du seuil de décision}
+\label{sec:seuil-classe-a}
+
+Les métriques présentées jusqu'ici pour la classe A (précision, rappel)
+sont calculées avec la règle de décision par défaut : la classe prédite est
+celle de plus haute probabilité (seuil implicite de 0.5 dans un contexte
+binaire, ou simplement l'argmax en multi-classe). Cette règle n'est pas
+forcément optimale pour une classe aussi minoritaire -- il est instructif
+de regarder comment précision et rappel évoluent si l'on fait varier
+explicitement le seuil de décision sur $P(\text{classe}=A)$, plutôt que de
+se limiter à ce seul point de fonctionnement. Cette analyse est faite à la
+fois sur l'Approche 2 (ResNet50, fine-tuning direct) et l'Approche 3
+(ResNet50 + Histogramme, MLO), en réutilisant les probabilités déjà
+calculées pour la fusion tardive de l'Approche 8
+(Section~\ref{sec:approche8}), sur le même sous-ensemble de 2000 images de
+test (vues MLO).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{image/courbe_seuil_classeA.png}
+    \caption{Précision et rappel de la classe A en fonction du seuil de
+    décision sur $P(\text{classe}=A)$, pour l'Approche 2 (gauche) et
+    l'Approche 3 (droite), sur les mêmes 2000 images de test (vues MLO).}
+    \label{fig:seuil_classeA}
+\end{figure}
+
+Le contraste entre les deux courbes est net. Pour l'\textbf{Approche 3}
+(droite), le rappel s'effondre à 0 dès un seuil d'environ 0.10 : le modèle
+n'assigne pratiquement jamais plus de 10\,\% de probabilité à la classe A,
+même sur les vraies images de cette classe -- ce n'est donc pas un problème
+de seuillage mal choisi, mais un problème d'apprentissage : le signal
+distinctif de la classe A n'a simplement pas été capturé par ce modèle,
+quel que soit le seuil retenu. Pour l'\textbf{Approche 2} (gauche), le
+rappel reste élevé (autour de 90\,\%) jusqu'à un seuil proche de 0.75-0.80,
+avec une précision qui progresse régulièrement de pair -- une vraie zone de
+compromis exploitable existe ici, contrairement à l'Approche 3. Ce résultat
+confirme visuellement, sur l'ensemble du spectre des seuils possibles et
+pas seulement au point de fonctionnement par défaut, que la classe A est
+un signal que l'Approche 2 a réellement appris à reconnaître, là où
+l'Approche 3 l'a essentiellement ignorée pendant l'entraînement.
+
+\section{Analyse comparative -- Approche 2 (préparée en parallèle)}
+\label{sec:interpretabilite-approche2}
+
+Le choix du modèle final entre l'Approche 2 et l'Approche 3
+(Section~\ref{sec:approche8}) est en attente de l'avis de notre encadrant,
+compte tenu du compromis accuracy globale / rappel de la classe A détaillé
+plus haut. Par précaution, la même analyse t-SNE + Grad-CAM que celle menée
+sur l'Approche 3 a donc été reproduite à l'identique sur l'Approche 2
+(ResNet50, fine-tuning direct), afin d'avoir ce chapitre prêt quelle que
+soit la réponse -- l'une des deux versions sera retirée du mémoire final
+une fois la décision connue.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{image/tsne_approche2_resnet50.png}
+    \caption{Visualisation t-SNE des caractéristiques apprises par
+    l'Approche 2 (ResNet50, fine-tuning direct), jeu de test seul, même
+    protocole que la Figure~\ref{fig:tsne}.}
+    \label{fig:tsne_approche2}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{image/tsne_approche2_resnet50_traintest.png}
+    \caption{Même visualisation t-SNE que la Figure~\ref{fig:tsne_approche2},
+    avec en plus un échantillon du train projeté dans le même espace 2D
+    (transparence = split, train clair / test foncé), même protocole que la
+    Figure~\ref{fig:tsne_traintest}.}
+    \label{fig:tsne_approche2_traintest}
+\end{figure}
+
+La structure obtenue est comparable à celle de l'Approche 3 : les classes
+B et D forment chacune une zone assez distincte, la classe C domine
+largement l'espace, et train et test se superposent globalement bien à
+l'intérieur de chaque classe -- même absence de séparation train/test que
+pour l'Approche 3, donc pas de signe de surapprentissage plus marqué de ce
+côté. Un point isolé de la classe A est visible ici (contre un seul
+également pour l'Approche 3), toujours trop peu nombreux pour en tirer une
+conclusion sur son organisation dans l'espace latent. On note aussi un
+petit amas isolé, loin du reste du nuage, mélangeant quelques points C et D
+-- vraisemblablement des cas atypiques dont les caractéristiques diffèrent
+nettement du reste du jeu de données.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.98\textwidth]{image/gradcam_approche2_resnet50.png}
+    \caption{Grad-CAM sur l'Approche 2 (ResNet50, fine-tuning direct) :
+    trois exemples par classe de densité, même protocole que la
+    Figure~\ref{fig:gradcam}.}
+    \label{fig:gradcam_approche2}
+\end{figure}
+
+Le résultat le plus frappant ici est \textbf{l'inverse} de ce qu'on
+pourrait attendre. Les classes \textbf{A}, \textbf{B} et \textbf{D}
+obtiennent des probabilités correctes élevées et stables sur leurs trois
+exemples respectifs (A : 90.4\,\%, 89.2\,\%, 88.7\,\% ; B : 95.7\,\%,
+87.9\,\%, 91.9\,\% ; D : 67.1\,\%, 92.1\,\%, 68.6\,\%), alors que la classe
+\textbf{C} -- pourtant très majoritaire dans le jeu d'entraînement --
+obtient des probabilités nettement plus faibles (17.4\,\%, 31.4\,\%,
+17.0\,\%). Ce n'est pas une anomalie : c'est la confirmation visuelle
+directe de ce qui a déjà été observé statistiquement pour cette approche
+(Section~\ref{sec:approche2}) -- le modèle \og{}sur-route\fg{} une partie
+des cas vers A, B et D au détriment de la confiance sur C, ce qui explique
+à la fois son excellent rappel sur la classe A (0.95) et son rappel plus
+faible sur la classe C (0.70) par rapport aux architectures qui, à
+l'inverse, écrasent la classe A pour maximiser la précision sur C. Les
+zones d'activation restent, comme pour l'Approche 3, concentrées sur le
+tissu mammaire (autour du mamelon), sans réaction marquée au fond noir,
+pour les quatre classes.
+
+% ============================================================================
+\chapter{Bugs identifiés et corrigés (récapitulatif méthodologique)}
+\label{sec:bugs}
+
+\begin{table}[h]
+\centering
+\small
+\caption{Bugs identifiés lors de la relecture du code et leur correction}
+\begin{tabular}{p{5cm}p{9cm}}
+\toprule
+Bug & Impact / correction \\
+\midrule
+Normalisation GLCM (débordement uint8) & Texture calculée sur des valeurs corrompues ; corrigé dans les 2 copies concernées \\
+\texttt{FineTunedFeatureExtractor} (CNN) & Retournait des features spatiales au lieu des logits, faisait planter la loss \\
+Filtrage vue manquant (\texttt{test\_hybrid\_model.py}) & Évaluation sur CC+MLO mélangés au lieu de la vue d'entraînement, score dilué \\
+Appariement CC/MLO factice (test double-branche) & Les deux branches recevaient la même image dupliquée \\
+Gel de branche inopérant (\texttt{hasattr} sur mauvais nom) & Le gel de branche ne s'appliquait jamais \\
+Chargement de poids conditionnel à un seul \texttt{--backbone} & Une seule branche sur deux chargeait ses poids pré-entraînés \\
+Chemin CONFIG obsolète (\texttt{training.py}) & Pointait vers un chemin Mac local au lieu du cluster \\
+Résolution des chemins CBIS-DDSM (UUID) & Noms de fichiers réels ne correspondant pas aux CSV officiels, résolu par heuristique taille de fichier \\
+Chemins CONFIG pointant vers un répertoire personnel d'un autre compte du cluster (\texttt{hybrid~train~mlo~rexnet/}) & Données d'entraînement et checkpoint de branche chargés depuis un compte externe au projet ; résultat correspondant (Modèle 3, Section~\ref{sec:modele3-invalide}) invalidé et retiré, code corrigé, puis modèle réentraîné avec succès (Test Acc 84\,\%, Focal Loss) sur les données propres au projet \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================================
+\chapter{Suivi opérationnel -- prochaines étapes}
+\todo{ce chapitre est un outil de suivi interne, à mettre à jour au fur et à
+mesure -- il n'est pas destiné à figurer tel quel dans la version finale du
+mémoire. Une fois tous les entraînements terminés, le remplacer par un
+véritable chapitre de conclusion et perspectives, synthétisant les résultats
+obtenus approche par approche (Chapitre~\ref{ch:approches}), la comparaison
+avec l'état de l'art (Chapitre~\ref{sec:etat-art-positionnement}), et les
+limites/pistes d'amélioration déjà
+identifiées dans ce document (classe A minoritaire, client drift du fédéré,
+modèle 3 invalidé, etc.)}
+\begin{itemize}
+  \item Terminer modèle 2 GLCM (ResNet50+MLO)
+  \item Récupérer la matrice de confusion de validation du modèle 1 GLCM (script en cours)
+  \item Terminer Approche 2 ResNet50, Approche 6 (les 4 variantes)
+  \item Rapport de classification complet ViT (Approche 2)
+  \item \sout{Modèle 3 GLCM (RexNet150+Histogramme/MLO) -- invalidé, à réentraîner}
+    -- fait : réentraîné avec Focal Loss, Test Acc 84\,\% (Section~\ref{sec:modele3-invalide})
+  \item Une fois toutes les approches ci-dessus terminées : libérer un GPU et
+    lancer l'entraînement fédéré (federated + centralized)
+\end{itemize}
+
+% ============================================================================
+\begin{thebibliography}{9}
+
+\bibitem{ref1}
+Société canadienne du cancer,
+\textit{Densité mammaire}.
+Disponible sur : \url{https://cancer.ca/fr/treatments/tests-and-procedures/mammography/breast-density}
+
+\bibitem{ref2}
+Thelma-Radiologie,
+\textit{Un outil de deep learning pour améliorer la classification des seins denses}.
+Disponible sur : \url{https://www.thema-radiologie.fr/actualites/3229/un-outil-de-deep-learning-pour-ameliorer-la-classification-des-seins-denses.html}
+
+\bibitem{ref3}
+K. C. Ho et al.,
+``Development and Validation of an AI-driven Mammographic Breast Density Classification Tool Based on Radiologist Consensus,''
+\textit{Radiology: Artificial Intelligence}, vol. 3, no. 6, 2021.
+
+\bibitem{ref4}
+N. F. Boyd et al.,
+``Mammographic Density and the Risk and Detection of Breast Cancer,''
+\textit{New England Journal of Medicine}, vol. 356, no. 3, pp. 227--236, 2007.
+
+\bibitem{ref5}
+W. Eziddin, \textit{Segmentation itérative d'images par propagation de
+connaissances dans le domaine possibiliste : application à la détection de
+tumeurs en imagerie mammographique}.
+Thèse de doctorat, Mines Telecom, 2012.
+
+\bibitem{ref6}
+S. R. Wellings,
+``A Hypothesis of the Origin of Human Breast Cancer from the Terminal Ductal Lobular Unit,''
+\textit{Pathol Res Pract}, vol. 166, pp. 515--535, 1980.
+\url{https://doi.org/10.1016/S0344-0338(80)80248-2}
+
+\bibitem{ref7}
+S. M. McKinney \textit{et al.},
+``International evaluation of an AI system for breast cancer screening,''
+\textit{Nature}, vol. 577, pp. 89--94, 2020.
+
+\bibitem{ref8}
+L. Shen \textit{et al.},
+``Deep Learning to Improve Breast Cancer Detection on Screening Mammography,''
+\textit{Scientific Reports}, vol. 9, article 12495, 2019.
+Disponible sur : \url{https://www.nature.com/articles/s41598-019-48995-4}
+
+\bibitem{ref9}
+H. F. R. Pereira \textit{et al.},
+``Classification of Breast Density in Mammograms Using VGG16, ResNet50 and DenseNet,''
+\textit{CIARP}, 2021.
+
+\bibitem{ref10}
+T. C. N. Alves \textit{et al.},
+``Breast density classification using histograms,''
+\textit{Springer}, 2014.
+
+\bibitem{ref11}
+R. Gatta \textit{et al.},
+``Classification of breast density using Fuzzy c-means,''
+\textit{Comput.\ Methods Programs Biomed.}, 2016.
+
+\bibitem{ref12}
+J. E. Lee \textit{et al.},
+``Topographic segmentation and kNN modeling,''
+\textit{Medical Physics}, vol. 44, no. 10, pp. 5231--5242, 2017.
+
+\bibitem{ref13}
+C. D. Lehman \textit{et al.},
+``Mammographic Breast Density Assessment Using Deep Learning: Clinical Implementation,''
+\textit{Radiology}, vol. 290, no. 1, pp. 52--58, 2019.
+\todo{l'URL précédemment associée à cette clé (10.1148/ryai.210199)
+appartient en réalité à Trace4BDensity (voir entrée séparée ci-dessous), pas
+à cet article -- remplacer par le vrai DOI de Lehman et al.\ 2019 avant
+remise finale.}
+
+\bibitem{trace4bdensity}
+S. Papa, F. Sardanelli, C. Salvatore \textit{et al.},
+``Trace4BDensity: an AI tool for mammographic breast density classification,''
+\textit{Radiology: Artificial Intelligence}, DOI: 10.1148/ryai.210199, 2022.
+\todo{titre exact et année à confirmer sur la page de l'éditeur -- entrée
+séparée créée suite à la correction du conflit de citation avec ref13
+détecté lors de la relecture de la bibliographie}
+
+\bibitem{ref14}
+K. J. Geras \textit{et al.},
+``High-Resolution Breast Cancer Screening with Multi-View Deep Convolutional Neural Networks,''
+\textit{arXiv preprint arXiv:1711.05775}, 2017.
+
+\bibitem{ref15}
+H. Soltani,
+``Détection du Cancer du Sein et Classification par une Approche intelligente,''
+Thèse de Doctorat, Laboratoire LAMIS, Université Echahid Cheikh Larbi Tébessi de Tébessa, 2025.
+Disponible sur : \url{https://lab-lamis-univ-tebessa.dz/Theses/Computer/Hama%20Soltani.pdf}
+
+\bibitem{ref16}
+\textit{Fusion collaborative de classifieurs : application à la détection de pathologies en mammographie}.
+Disponible sur : \url{https://theses.hal.science/tel-03510707v1}
+
+\bibitem{ref17}
+``A classification framework for prediction of breast density using an ensemble of neural network classifiers.''
+Disponible sur : \url{https://www.sciencedirect.com/science/article/pii/S0208521616302170}
+
+\bibitem{ref18}
+``Fully Automated Breast Density Segmentation and Classification Using Deep Learning,''
+\textit{Diagnostics}, 2020.
+Disponible sur : \url{https://www.mdpi.com/2075-4418/10/11/988}
+
+\bibitem{ref19}
+A. G. M. Al Mansour, F. Alshomrani, A. Alfahaid, A. T. M. Almutairi,
+``MammoViT: A Custom Vision Transformer Architecture for Accurate BIRADS Classification in Mammogram Analysis,''
+\textit{Diagnostics}, vol. 15, no. 3, article 285, 2025.
+DOI: 10.3390/diagnostics15030285.
+Disponible sur : \url{https://www.mdpi.com/2075-4418/15/3/285}
+
+\bibitem{ref20}
+O. Tanimola, O. Shobayo, O. Popoola, \& O. Okoyeigbo,
+``Breast Cancer Classification Using Fine-Tuned SWIN Transformer Model on Mammographic Images,''
+\textit{Analytics}, vol. 3, no. 4, pp. 461--475, 2024.
+Disponible sur : \url{https://www.mdpi.com/2813-2203/3/4/26}
+
+\bibitem{ref21}
+L. W. Bassett, M. C. Mahoney, S. Apple, \& C. D'Orsi,
+\textit{Breast Imaging: Expert Radiology Series E-Book}.
+Elsevier Health Sciences, 2010.
+Disponible sur : \url{https://www.uclahealth.org/departments/radiology/education/breast-imaging-teaching-resources/screening-mammogram/positioning-and-technique}
+
+\bibitem{ref22}
+I. Kumar, H. S. Bhadauria, J. Virmani, and S. Thakur,
+``A classification framework for prediction of breast density using an ensemble of neural network classifiers,''
+\textit{Biocybernetics and Biomedical Engineering}, vol. 37, no. 1, pp. 217--228, 2017.
+Disponible sur : \url{https://www.researchgate.net/publication/313023655_A_classification_framework_for_prediction_of_breast_density_using_an_ensemble_of_neural_network_classifiers}
+
+\bibitem{ref23}
+M. F. S. Ho \textit{et al.},
+``Density Map and Fuzzy Classification for BI-RADS Breast Tissue Composition,''
+\textit{Computer Methods and Programs in Biomedicine}, vol. 199, article 105825, 2021.
+Disponible sur : \url{https://doi.org/10.1016/j.cmpb.2020.105825}
+
+\bibitem{ref24}
+K. Jeffers \textit{et al.},
+``Breast Cancer Risk and Mammographic Density Assessed with Semiautomated and Fully Automated Methods and BI-RADS,''
+\textit{Radiology}, vol. 282, no. 2, pp. 348--355, 2017.
+Disponible sur : \url{https://pubs.rsna.org/doi/10.1148/radiol.2016152062}
+
+\bibitem{ref25}
+L. Shen, L. Margolies, J. H. Rothstein, E. Fluder, R. McBride, and W. Zhang,
+``End-to-End Training for Whole Image Breast Cancer Diagnosis Using an All Convolutional Design,''
+\textit{arXiv preprint arXiv:1711.05775}, 2017.
+Disponible sur : \url{https://arxiv.org/pdf/1711.05775}
+
+\bibitem{ref26}
+B. Boyer \textit{et al.},
+``Automated 2D Breast Density Assessment: Correlation with Radiologist Consensus Visual Classification,''
+\textit{Academic Radiology}, vol. 20, no. 12, pp. 1548--1554, 2013.
+
+\bibitem{ref27}
+C. Vachon \textit{et al.},
+``Accuracy of BI-RADS Breast Density Category Definitions,''
+\textit{Academic Radiology}, vol. 13, no. 10, pp. 1234--1241, 2006.
+Disponible sur : \url{https://doi.org/10.1016/j.acra.2006.06.005}
+
+\bibitem{ref28}
+M. F. S. Ho \textit{et al.},
+``Density Map and Fuzzy Classification for BI-RADS Breast Tissue Composition,''
+\textit{Computer Methods and Programs in Biomedicine}, vol. 199, article 105825, 2021.
+Disponible sur : \url{https://doi.org/10.1016/j.cmpb.2020.105825}
+\todo{doublon exact de ref23 (même article) -- garder une seule des deux
+clés et corriger les \texttt{\textbackslash cite} correspondants avant
+remise finale}
+
+\bibitem{ref29}
+A. O. G. Guerriero \textit{et al.},
+``Evaluation of Breast Density Assessment: A Comparative Study,''
+\textit{The Breast}, vol. 16, no. 5, pp. 488--496, 2007.
+
+\bibitem{ref30}
+J. A. G. M. van Gils \textit{et al.},
+``Reproducibility of BI-RADS Breast Density Categories,''
+\textit{The Breast}, vol. 14, no. 3, pp. 210--216, 2005.
+
+\bibitem{ref31}
+P. M. Lauritzen \textit{et al.},
+``AI in Mammography Screening: Workload Reduction and Screening Specificity,''
+\textit{Radiology}, vol. 303, no. 2, pp. 281--289, 2022.
+Disponible sur : \url{https://doi.org/10.1148/radiol.210948}
+
+\bibitem{ref32}
+A. Yala \textit{et al.},
+``Using Deep Learning to Triage Screening Mammograms to Improve Radiologist Efficiency,''
+\textit{Radiology}, vol. 293, no. 1, pp. 30--37, 2019.
+Disponible sur : \url{https://doi.org/10.1148/radiol.2019182908}
+
+\bibitem{ref33}
+A. Rodríguez-Ruiz \textit{et al.},
+``Detection of Breast Cancer with Mammography: Effect of an Artificial Intelligence Support System,''
+\textit{Radiology}, vol. 290, no. 2, pp. 305--314, 2019.
+Disponible sur : \url{https://doi.org/10.1148/radiol.2018181371}
+
+% --- Références pour l'apprentissage fédéré et l'interprétabilité ---
+\bibitem{ref_fedavg}
+H. B. McMahan, E. Moore, D. Ramage, S. Hampson, and B. Agüera y Arcas,
+``Communication-Efficient Learning of Deep Networks from Decentralized Data,''
+\textit{Proceedings of the 20th International Conference on Artificial Intelligence and Statistics (AISTATS)}, PMLR 54:1273--1282, 2017.
+Disponible sur : \url{https://arxiv.org/abs/1602.05629}
+
+\bibitem{ref_haralick}
+R. M. Haralick, K. Shanmugam, and I. Dinstein,
+``Textural Features for Image Classification,''
+\textit{IEEE Transactions on Systems, Man, and Cybernetics}, vol. SMC-3, no. 6, pp. 610--621, 1973.
+Disponible sur : \url{https://doi.org/10.1109/TSMC.1973.4309314}
+
+\bibitem{ref_gradcam}
+R. R. Selvaraju, M. Cogswell, A. Das, R. Vedantam, D. Parikh, and D. Batra,
+``Grad-CAM: Visual Explanations from Deep Networks via Gradient-Based Localization,''
+\textit{Proceedings of the IEEE International Conference on Computer Vision (ICCV)}, pp. 618--626, 2017.
+Disponible sur : \url{https://arxiv.org/abs/1610.02391}
+
+\bibitem{ref_tsne}
+L. van der Maaten and G. Hinton,
+``Visualizing Data using t-SNE,''
+\textit{Journal of Machine Learning Research}, vol. 9, pp. 2579--2605, 2008.
+
+\bibitem{ref_gradcam_mammo1}
+\todo{auteurs exacts à vérifier sur la page de l'éditeur}
+``Explainable Mammogram Analysis with EfficientNetV2 and Grad-CAM++ for Robust Cancer Diagnosis,''
+\textit{Diagnostics}, vol. 16, no. 1, article 105, 2025.
+Disponible sur : \url{https://www.mdpi.com/2075-4418/16/1/105}
+
+\bibitem{ref_gradcam_mammo2}
+F. M. Talaat, S. A. Gamel, R. M. El-Balka, M. Shehata, and H. ZainEldin,
+``Grad-CAM Enabled Breast Cancer Classification with a 3D Inception-ResNet V2: Empowering Radiologists with Explainable Insights,''
+\textit{Cancers}, vol. 16, no. 21, article 3668, 2024.
+DOI: 10.3390/cancers16213668.
+
+\bibitem{ref_dietterich}
+T. G. Dietterich,
+``Ensemble Methods in Machine Learning,''
+in \textit{Multiple Classifier Systems}, Lecture Notes in Computer Science, vol. 1857, pp. 1--15, Springer, 2000.
+Disponible sur : \url{https://doi.org/10.1007/3-540-45014-9_1}
+
+\bibitem{ref_focal_loss}
+T.-Y. Lin, P. Goyal, R. Girshick, K. He, and P. Dollár,
+``Focal Loss for Dense Object Detection,''
+\textit{Proceedings of the IEEE International Conference on Computer Vision (ICCV)}, pp. 2980--2988, 2017.
+Disponible sur : \url{https://arxiv.org/abs/1708.02002}
+
+\bibitem{ref_rieke_fl_digital_health}
+N. Rieke, J. Hancox, W. Li \textit{et al.},
+``The Future of Digital Health with Federated Learning,''
+\textit{npj Digital Medicine}, vol. 3, article 119, 2020.
+Disponible sur : \url{https://www.nature.com/articles/s41746-020-00323-1}
+
+\bibitem{ref_sheller_fl_brain}
+M. J. Sheller, B. Edwards, G. A. Reina, J. Martin, S. Pati, A. Kotrotsou, M. Milchenko, W. Xu, D. Marcus, R. R. Colen, and S. Bakas,
+``Federated Learning in Medicine: Facilitating Multi-Institutional Collaborations Without Sharing Patient Data,''
+\textit{Scientific Reports}, vol. 10, article 12598, 2020.
+Disponible sur : \url{https://www.nature.com/articles/s41598-020-69250-1}
+
+\bibitem{ref_kaissis_fl_privacy}
+G. A. Kaissis, M. R. Makowski, D. Rückert, and R. F. Braren,
+``Secure, Privacy-Preserving and Federated Machine Learning in Medical Imaging,''
+\textit{Nature Machine Intelligence}, vol. 2, pp. 305--311, 2020.
+Disponible sur : \url{https://www.nature.com/articles/s42256-020-0186-1}
+
+\bibitem{ref_roth_fl_breast_density}
+H. R. Roth, K. Chang, P. Singh \textit{et al.},
+``Federated Learning for Breast Density Classification: A Real-World Implementation,''
+in \textit{Domain Adaptation and Representation Transfer, and Distributed and Collaborative Learning (DART/DCL Workshop, MICCAI)}, Lecture Notes in Computer Science, Springer, 2020.
+Disponible sur : \url{https://arxiv.org/abs/2009.01871}
+
+\end{thebibliography}
+
+\end{document}

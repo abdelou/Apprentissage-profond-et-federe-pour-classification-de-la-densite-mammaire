@@ -1,0 +1,144 @@
+# Requirements pour le projet de classification de densité mammaire
+# Stage MA1-IG - Classification automatique de la densité mammaire par Vision Transformers
+
+# =============================================================================
+# LIBRAIRIES DE BASE
+# =============================================================================
+
+# Deep Learning Framework
+torch>=1.12.0
+torchvision>=0.13.0
+torchaudio>=0.12.0
+
+## Vision Transformers et modèles pré-entraînés
+timm>=0.6.0  # requis pour RexNet150
+transformers>=4.20.0
+
+# =============================================================================
+# TRAITEMENT D'IMAGES ET DONNÉES MÉDICALES
+# =============================================================================
+
+# Lecture des fichiers DICOM
+pydicom>=2.3.0
+
+# Traitement d'images
+opencv-python>=4.6.0
+Pillow>=9.0.0
+scikit-image>=0.19.0
+
+# Manipulation de données
+numpy>=1.21.0
+pandas>=1.4.0
+scipy>=1.8.0
+
+# =============================================================================
+# MACHINE LEARNING ET ÉVALUATION
+# =============================================================================
+
+# Scikit-learn pour métriques et utilitaires
+scikit-learn>=1.1.0
+
+# Métriques d'évaluation
+seaborn>=0.11.0
+matplotlib>=3.5.0
+
+# =============================================================================
+# UTILITAIRES ET OUTILS
+# =============================================================================
+
+# Barres de progression
+tqdm>=4.64.0
+
+# Gestion des chemins et fichiers
+pathlib2>=2.3.0
+
+# Utilitaires système
+psutil>=5.9.0
+
+# =============================================================================
+# EXPLICABILITÉ ET VISUALISATION
+# =============================================================================
+
+# SHAP pour l'explicabilité
+shap>=0.41.0
+
+# Plotly pour visualisations interactives (optionnel)
+plotly>=5.10.0
+
+# =============================================================================
+# OPTIMISATION ET PERFORMANCE
+# =============================================================================
+
+# Accélération GPU (optionnel)
+# cupy-cuda11x>=11.0.0  # Décommentez selon votre version CUDA
+
+# =============================================================================
+# DÉVELOPPEMENT ET DEBUGGING
+# =============================================================================
+
+# Jupyter pour notebooks (optionnel)
+jupyter>=1.0.0
+ipykernel>=6.0.0
+
+# Debugging et profiling
+memory-profiler>=0.60.0
+
+# =============================================================================
+# VERSIONS SPÉCIFIQUES POUR LA COMPATIBILITÉ
+# =============================================================================
+
+# Versions testées et validées
+torch==1.12.1
+torchvision==0.13.1
+timm==0.6.12
+pydicom==2.3.1
+opencv-python==4.6.0.66
+numpy==1.21.6
+pandas==1.4.4
+scikit-learn==1.1.3
+matplotlib==3.5.3
+seaborn==0.11.2
+tqdm==4.64.1
+
+# =============================================================================
+# INSTALLATION
+# =============================================================================
+
+# Pour installer toutes les dépendances :
+# pip install -r requirements.txt
+
+# Pour installer avec CUDA (si disponible) :
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu116
+
+# Pour installer les dépendances de développement :
+# pip install -r requirements.txt
+# pip install jupyter memory-profiler plotly
+
+# =============================================================================
+# NOTES D'INSTALLATION
+# =============================================================================
+
+# 1. Créez un environnement virtuel :
+#    python -m venv mammography_env
+#    source mammography_env/bin/activate  # Linux/Mac
+#    mammography_env\Scripts\activate     # Windows
+
+# 2. Mettez à jour pip :
+#    pip install --upgrade pip
+
+# 3. Installez les dépendances :
+#    pip install -r requirements.txt
+
+# 4. Vérifiez l'installation :
+#    python -c "import torch; print(f'PyTorch version: {torch.__version__}')"
+#    python -c "import pydicom; print(f'PyDICOM version: {pydicom.__version__}')"
+
+
+
+# =============================================================================
+# VÉRIFICATION DE L'ENVIRONNEMENT
+# =============================================================================
+
+# Script de vérification (à exécuter après installation) :
+# python check_environment.py
+

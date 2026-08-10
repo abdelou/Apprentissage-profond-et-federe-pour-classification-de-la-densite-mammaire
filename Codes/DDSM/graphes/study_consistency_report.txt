@@ -1,0 +1,46 @@
+=== RAPPORT D'ANALYSE DE COHÉRENCE DES DENSITÉS ===
+
+STATISTIQUES GÉNÉRALES:
+- Total d'images: 44830236
+- Nombre de study_id: 4958
+- Study_id cohérents: 4939
+- Study_id incohérents: 19
+- Taux de cohérence: 99.62%
+
+DISTRIBUTION PAR NOMBRE D'IMAGES:
+- 1 image(s): 875 study_id(s)
+- 2 image(s): 4082 study_id(s)
+- 3 image(s): 1 study_id(s)
+
+DÉTAILS DES INCOHÉRENCES:
+- Study ID 00f826160094668f09b06ec671efe0ab: 2 images, densités: ['DENSITY C', 'DENSITY B']
+- Study ID 1ba1ef295f3c82dba5122622d4aa563c: 2 images, densités: ['DENSITY D', 'DENSITY C']
+- Study ID 21413aed28600b077a7e2d1c5c045a97: 2 images, densités: ['DENSITY D', 'DENSITY C']
+- Study ID 25e26de58e476ec0075b26f8d55898d3: 2 images, densités: ['DENSITY B', 'DENSITY A']
+- Study ID 2c24cddcb1e33a55a84be57315fed61d: 2 images, densités: ['DENSITY C', 'DENSITY B']
+- Study ID 59c2efb7e93936b5bc32ca50d5eccd8c: 2 images, densités: ['DENSITY B', 'DENSITY C']
+- Study ID 67f44773f0e592eeaab937e28443f36d: 2 images, densités: ['DENSITY D', 'DENSITY C']
+- Study ID 6abe90336cc1f2c56f5c4acc66821bd0: 2 images, densités: ['DENSITY C', 'DENSITY D']
+- Study ID 6e668aaeb4daa860b2a87ae61e19e26f: 2 images, densités: ['DENSITY C', 'DENSITY B']
+- Study ID 6f83efb75078325f2fcef6aeb4f43db3: 2 images, densités: ['DENSITY C', 'DENSITY D']
+- Study ID 7728b2ca1e862b123c3f493a10a13af3: 2 images, densités: ['DENSITY D', 'DENSITY C']
+- Study ID 790aad76932a00be34b2470f82cc581a: 2 images, densités: ['DENSITY D', 'DENSITY C']
+- Study ID 7f7fb318655b51c5e87a9c50969451f0: 2 images, densités: ['DENSITY B', 'DENSITY C']
+- Study ID 87acd92c68a28af226831cbf578f8147: 2 images, densités: ['DENSITY C', 'DENSITY B']
+- Study ID 93dac652de524f556eff093150d5794e: 2 images, densités: ['DENSITY C', 'DENSITY B']
+- Study ID 98698cc2830d12fb1abe73c92df4fd8e: 2 images, densités: ['DENSITY D', 'DENSITY C']
+- Study ID b3483104ef6df27c10ddac36233f45b0: 2 images, densités: ['DENSITY C', 'DENSITY D']
+- Study ID c4e6f81d57735d9d42720d531d433ccf: 2 images, densités: ['DENSITY B', 'DENSITY C']
+- Study ID e30924fc9a7ddc8fc288ad0dfe85fca3: 2 images, densités: ['DENSITY D', 'DENSITY C']
+
+STATISTIQUES PAR SPLIT:
+- Split test:
+  * Nombre de study_id: 995
+  * Cohérents: 991
+  * Taux de cohérence: 99.6%
+  * Images moyennes par study_id: 1.8
+- Split training:
+  * Nombre de study_id: 3963
+  * Cohérents: 3948
+  * Taux de cohérence: 99.6%
+  * Images moyennes par study_id: 1.8

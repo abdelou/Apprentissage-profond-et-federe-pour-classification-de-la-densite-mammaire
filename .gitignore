@@ -1,0 +1,35 @@
+# Environnements virtuels
+.venv/
+venv/
+mammography_env/
+
+# Poids de modèles entraînés (trop gros pour GitHub, plusieurs dépassent 100 Mo)
+*.pth
+*.pt
+*.ckpt
+
+# Features / dumps mis en cache
+featuresextracted/
+*.npy
+
+# Images médicales (DICOM) -- ne pas versionner de données patient/dataset
+*.dicom
+*.dcm
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs et sorties d'entraînement
+*.log
+nohup.out
+
+# Fichiers temporaires de travail
+tmp_*.csv
+
+# Fichiers système
+.DS_Store
+
+# Documents tiers (rapport d'un autre stagiaire, pas à publier ici)
+Rapport_De_Stage_Jopin.pdf
