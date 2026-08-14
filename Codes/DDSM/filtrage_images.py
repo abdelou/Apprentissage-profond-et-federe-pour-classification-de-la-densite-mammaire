@@ -4,8 +4,8 @@ import pandas as pd
 
 # Chemins
 csv_path = "breast-level_annotations.csv"
-images_root ="G:\MA1\STAGE\DB\db\images"
-output_root = "G:\MA1\STAGE\DBREMASTER"
+images_root ="/home_nfs/abdelouahada/images"
+output_root = "/home_nfs/abdelouahada/BD"
 
 # Lire le CSV
 df = pd.read_csv(csv_path)

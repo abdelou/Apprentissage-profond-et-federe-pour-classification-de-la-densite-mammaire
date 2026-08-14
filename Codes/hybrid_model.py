@@ -487,4 +487,4 @@ if __name__ == "__main__":
     print(f"  - Branche Image (CNN): {img_dim}D")
     print(f"  - Branche Histogramme (MLP [128, 64]): {hist_dim}D")
     print(f"  - Fusion (Concaténation): {combined_dim}D")
-    print("\n✅ Test du modèle hybride terminé avec succès!")
+    print("\n Test du modèle hybride terminé avec succès!")

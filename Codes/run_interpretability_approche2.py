@@ -53,7 +53,7 @@ def main():
     run_gradcam_grid(
         model, target_layer, test_dataset, device,
         out_path=f"{out_dir}/gradcam_approche2_resnet50.png",
-        n_per_class=3,
+        n_per_class=2,
     )
 
     print("\n[2/3] Generation de la projection t-SNE (test seul)...")

@@ -1,5 +1,5 @@
 """
-Script d'analyse d'interpretabilite pour le memoire.
+Script d'analyse d'interpretabilite.
 
 Ici on regroupe les deux techniques demandees par le prof pour "ouvrir la
 boite noire" du modele :
@@ -144,67 +144,83 @@ def load_model(model_module, model_class, weights_path, device, **model_kwargs):
     return model
 
 
-def run_gradcam_grid(model, target_layer, dataset, device, out_path, n_per_class=3):
-    """Genere la figure principale demandee par le prof : pour chaque classe,
-    n_per_class exemples, chacun affiche en paire (image originale au-dessus,
-    heatmap Grad-CAM superposee en dessous) -- comme la version originale a
-    1 exemple/classe, mais generalisee a plusieurs exemples pour verifier que
-    le comportement du modele est constant d'une image a l'autre (avec
-    n_per_class=3 : 4 classes x 3 exemples x 2 (original+heatmap) = 24
-    images au total). Une seule colorbar verticale, partagee par toute la
-    figure, plutot qu'une par sous-image."""
+def run_gradcam_grid(model, target_layer, dataset, device, out_path, n_per_class=2):
+    """Genere la figure principale demandee par le prof : format classique
+    (colonnes = les 4 classes, comme dans la version d'origine), mais avec
+    4 lignes au lieu de 2, et DEUX images DIFFERENTES par classe (pas la
+    meme repetee) pour montrer les deux facons de calculer Grad-CAM :
+      ligne 1 : originale, exemple 1
+      ligne 2 : Grad-CAM de l'exemple 1 sur sa VRAIE classe -- ou se trouve
+                la preuve de la bonne reponse, meme si le modele se trompe.
+      ligne 3 : originale, exemple 2 (image differente de l'exemple 1)
+      ligne 4 : Grad-CAM de l'exemple 2 sur la classe REELLEMENT PREDITE
+                (argmax du modele) -- ce qui a vraiment fait pencher le
+                modele vers sa reponse, correcte ou non.
+    4 classes x 4 lignes = 16 images. Une seule colorbar verticale, partagee
+    par toute la figure."""
     gradcam = GradCAM(model, target_layer)
 
-    # on cherche dans le dataset de test n_per_class images de chaque classe
-    # (label peut etre soit un int Python soit un tenseur PyTorch scalaire
-    # selon le Dataset utilise -- on force en int pour que la cle matche
-    # bien dans le dict by_class dans les deux cas)
+    # deux images reelles et differentes par classe : la premiere pour le
+    # calcul "vraie classe", la seconde pour le calcul "classe predite"
     by_class = {0: [], 1: [], 2: [], 3: []}
     for idx in range(len(dataset)):
         image, label = dataset[idx]
         label = int(label)
-        if len(by_class[label]) < n_per_class:
-            by_class[label].append((image, idx))
-        if all(len(v) >= n_per_class for v in by_class.values()):
-            break  # pas la peine de continuer a parcourir tout le dataset
+        if len(by_class[label]) < 2:
+            by_class[label].append(image)
+        if all(len(v) >= 2 for v in by_class.values()):
+            break
 
-    n_rows = 4 * 2  # 2 lignes (originale, Grad-CAM) par classe
-    fig, axes = plt.subplots(n_rows, n_per_class, figsize=(3.6 * n_per_class + 1.5, 7.0 * 4))
-    if n_per_class == 1:
-        axes = axes.reshape(n_rows, 1)
+    fig, axes = plt.subplots(4, 4, figsize=(4.2 * 4, 5.0 * 4))
+
+    def _to_display(image):
+        img_np = image.cpu().numpy().squeeze()
+        # certains backbones (Approche 2) recoivent une image repliquee
+        # sur 3 canaux (C,H,W) -- comme c'est un niveau de gris duplique,
+        # un seul canal suffit pour l'affichage
+        if img_np.ndim == 3:
+            img_np = img_np[0]
+        return (img_np - img_np.min()) / (img_np.max() - img_np.min() + 1e-8)
 
     last_im = None
     for c in range(4):
-        row_orig = 2 * c
-        row_cam = 2 * c + 1
-        for j in range(n_per_class):
-            image, idx = by_class[c][j]
-            image_tensor = image.unsqueeze(0).to(device)  # batch de taille 1
-            cam, pred_class, probs = gradcam(image_tensor, target_class=c)
+        image1, image2 = by_class[c][0], by_class[c][1]
 
-            # on remet l'image dans [0,1] juste pour l'affichage (elle est
-            # normalisee ImageNet donc a l'origine les valeurs sont negatives)
-            img_np = image.cpu().numpy().squeeze()
-            # certains backbones (Approche 2) recoivent une image repliquee
-            # sur 3 canaux (C,H,W) -- comme c'est un niveau de gris duplique,
-            # un seul canal suffit pour l'affichage
-            if img_np.ndim == 3:
-                img_np = img_np[0]
-            img_np = (img_np - img_np.min()) / (img_np.max() - img_np.min() + 1e-8)
+        # 1) exemple 1, carte sur la vraie classe (forcee)
+        cam_true, _, probs_true = gradcam(image1.unsqueeze(0).to(device), target_class=c)
+        # 2) exemple 2, carte sur la classe que le modele predit reellement (argmax)
+        cam_pred, pred_class, probs_pred = gradcam(image2.unsqueeze(0).to(device), target_class=None)
 
-            ax_orig = axes[row_orig, j]
-            ax_orig.imshow(img_np, cmap="gray")
-            ax_orig.set_title(f"{CLASS_NAMES[c]} -- ex. {j+1} : Originale", fontsize=9.5)
-            ax_orig.axis("off")
+        img1_np = _to_display(image1)
+        img2_np = _to_display(image2)
 
-            ax_cam = axes[row_cam, j]
-            ax_cam.imshow(img_np, cmap="gray")
-            last_im = ax_cam.imshow(cam, cmap="jet", alpha=0.5, vmin=0, vmax=1)
-            ax_cam.set_title(
-                f"Grad-CAM (predit {CLASS_NAMES[pred_class]}, {probs[pred_class]*100:.1f}%)",
-                fontsize=9.5,
-            )
-            ax_cam.axis("off")
+        ax_orig1 = axes[0, c]
+        ax_orig1.imshow(img1_np, cmap="gray")
+        ax_orig1.set_title(f"{CLASS_NAMES[c]} -- ex. 1 : Originale", fontsize=10)
+        ax_orig1.axis("off")
+
+        ax_true = axes[1, c]
+        ax_true.imshow(img1_np, cmap="gray")
+        last_im = ax_true.imshow(cam_true, cmap="jet", alpha=0.5, vmin=0, vmax=1)
+        ax_true.set_title(
+            f"Grad-CAM (vraie classe, {probs_true[c]*100:.1f}%)", fontsize=10,
+        )
+        ax_true.axis("off")
+
+        ax_orig2 = axes[2, c]
+        ax_orig2.imshow(img2_np, cmap="gray")
+        ax_orig2.set_title(f"{CLASS_NAMES[c]} -- ex. 2 : Originale", fontsize=10)
+        ax_orig2.axis("off")
+
+        ax_pred = axes[3, c]
+        ax_pred.imshow(img2_np, cmap="gray")
+        ax_pred.imshow(cam_pred, cmap="jet", alpha=0.5, vmin=0, vmax=1)
+        correct = " = vraie classe" if pred_class == c else " -- erreur"
+        ax_pred.set_title(
+            f"Grad-CAM (predit {CLASS_NAMES[pred_class]}, {probs_pred[pred_class]*100:.1f}%{correct})",
+            fontsize=10,
+        )
+        ax_pred.axis("off")
 
     fig.tight_layout(rect=[0, 0, 0.92, 1])
     # une seule colorbar verticale a droite de toute la grille, plutot que
@@ -239,9 +255,25 @@ def run_tsne(model, feature_layer, dataset, device, out_path, n_samples=300, bac
     # on ne prend pas TOUT le jeu de test (ca serait trop lent et le nuage
     # de points deviendrait illisible), juste un echantillon aleatoire.
     # random_state=42 pour pouvoir reproduire exactement le meme graphe
-    # si on relance le script plus tard
+    # si on relance le script plus tard.
+    #
+    # ATTENTION : un tirage purement aleatoire peut manquer entierement la
+    # classe A (environ 10 images sur 2000 en test, ~0.5%) -- avec
+    # n_samples=300, la probabilite de n'en tirer aucune est d'environ 22%,
+    # ce qui s'est reellement produit une fois sur ce projet. Comme la
+    # classe A est justement celle qui interesse le plus ce memoire, on
+    # force son inclusion : on prend TOUTES ses images, puis on complete le
+    # reste du quota au hasard parmi les autres classes.
     rng = np.random.RandomState(42)
-    indices = rng.choice(len(dataset), size=min(n_samples, len(dataset)), replace=False)
+    if hasattr(dataset, "df") and "label" in dataset.df.columns:
+        all_labels = dataset.df["label"].values
+        forced_idx = np.where(all_labels == 0)[0]  # classe A garantie
+        remaining_idx = np.where(all_labels != 0)[0]
+        n_fill = max(0, min(n_samples, len(dataset)) - len(forced_idx))
+        filled_idx = rng.choice(remaining_idx, size=min(n_fill, len(remaining_idx)), replace=False)
+        indices = np.concatenate([forced_idx, filled_idx])
+    else:
+        indices = rng.choice(len(dataset), size=min(n_samples, len(dataset)), replace=False)
 
     with torch.no_grad():  # pas besoin de gradient ici, juste de l'inference
         for idx in indices:
@@ -307,8 +339,19 @@ def run_tsne_train_test(model, feature_layer, train_dataset, test_dataset, devic
     handle = feature_layer.register_forward_hook(hook)
 
     def extract(dataset, n_samples, split_name):
+        # meme correction que dans run_tsne() : on force l'inclusion de la
+        # classe A, sinon un tirage purement aleatoire peut la manquer
+        # entierement (~22% de chances sur ce projet, deja arrive une fois)
         rng = np.random.RandomState(42)
-        indices = rng.choice(len(dataset), size=min(n_samples, len(dataset)), replace=False)
+        if hasattr(dataset, "df") and "label" in dataset.df.columns:
+            all_labels = dataset.df["label"].values
+            forced_idx = np.where(all_labels == 0)[0]
+            remaining_idx = np.where(all_labels != 0)[0]
+            n_fill = max(0, min(n_samples, len(dataset)) - len(forced_idx))
+            filled_idx = rng.choice(remaining_idx, size=min(n_fill, len(remaining_idx)), replace=False)
+            indices = np.concatenate([forced_idx, filled_idx])
+        else:
+            indices = rng.choice(len(dataset), size=min(n_samples, len(dataset)), replace=False)
         with torch.no_grad():
             for idx in indices:
                 image, label = dataset[idx]

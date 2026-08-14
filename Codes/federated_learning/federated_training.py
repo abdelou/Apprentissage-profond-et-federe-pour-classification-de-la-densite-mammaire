@@ -28,8 +28,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, ConcatDataset
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
-from fed_model import ResNet50DensityClassifier
-from fed_datasets import VinDrCCDataset, DDSMDataset, DENSITY_CLASSES
+from fed_model import ResNet50DensityClassifier, SiameseFederatedClassifier
+from fed_datasets import VinDrCCDataset, DDSMDataset, VinDrPairedDataset, DDSMPairedDataset, DENSITY_CLASSES
 
 VINDR_ROOT = "/home_nfs/abdelouahada/dataset_extracted/vindr-mammo-a-large-scale-benchmark-dataset-for-computer-aided-detection-and-diagnosis-in-full-field-digital-mammography-1.0.0"
 VINDR_ANNOTATIONS = os.path.join(VINDR_ROOT, "breast-level_annotations.csv")
@@ -38,11 +38,15 @@ DDSM_ANNOTATIONS = "/home_nfs/abdelouahada/Entrainement_cetic/CBIS-DDSM-manifest
 
 def class_weights_for(dataset, device):
     # random_split() renvoie un Subset (dataset original + indices), pas le
-    # dataset lui-même — il faut donc indexer .dataset.df par .indices.
-    if isinstance(dataset, torch.utils.data.Subset):
-        labels = dataset.dataset.df.iloc[dataset.indices]['label'].values
+    # dataset lui-même — il faut donc indexer les labels par .indices.
+    # VinDrCCDataset/DDSMDataset stockent les labels dans un DataFrame (.df),
+    # VinDrPairedDataset/DDSMPairedDataset dans une liste de paires (.pairs).
+    base = dataset.dataset if isinstance(dataset, torch.utils.data.Subset) else dataset
+    indices = dataset.indices if isinstance(dataset, torch.utils.data.Subset) else range(len(base))
+    if hasattr(base, 'df'):
+        labels = base.df.iloc[list(indices)]['label'].values
     else:
-        labels = dataset.df['label'].values
+        labels = np.array([base.pairs[i]['label'] for i in indices])
     counts = np.bincount(labels, minlength=4)
     n = counts.sum()
     weights = np.array([n / (4 * c) if c > 0 else 0.0 for c in counts], dtype=np.float32)
@@ -84,6 +88,51 @@ def evaluate(model, loader, device):
         outputs = model(images)
         loss = criterion(outputs, labels)
         running_loss += loss.item() * images.size(0)
+        total += labels.size(0)
+        preds = outputs.argmax(dim=1).cpu().numpy()
+        all_preds.extend(preds)
+        all_labels.extend(labels.cpu().numpy())
+    acc = accuracy_score(all_labels, all_preds)
+    avg_loss = running_loss / total if total else 0.0
+    return acc, avg_loss, all_labels, all_preds
+
+
+def local_train_paired(model, loader, device, epochs, lr):
+    """Variante de local_train pour l'architecture siamoise (paires CC+MLO)."""
+    model.train()
+    criterion = nn.CrossEntropyLoss(weight=class_weights_for(loader.dataset, device))
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    last_train_acc, last_train_loss = 0.0, 0.0
+    for _ in range(epochs):
+        running_loss, correct, total = 0.0, 0, 0
+        for cc_images, mlo_images, labels in loader:
+            cc_images, mlo_images, labels = cc_images.to(device), mlo_images.to(device), labels.to(device)
+            optimizer.zero_grad()
+            outputs = model(cc_images, mlo_images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item() * cc_images.size(0)
+            preds = outputs.argmax(dim=1)
+            correct += (preds == labels).sum().item()
+            total += labels.size(0)
+        last_train_acc = correct / total if total else 0.0
+        last_train_loss = running_loss / total if total else 0.0
+    return model.state_dict(), last_train_acc, last_train_loss
+
+
+@torch.no_grad()
+def evaluate_paired(model, loader, device):
+    """Variante de evaluate pour l'architecture siamoise (paires CC+MLO)."""
+    model.eval()
+    criterion = nn.CrossEntropyLoss()
+    all_preds, all_labels = [], []
+    running_loss, total = 0.0, 0
+    for cc_images, mlo_images, labels in loader:
+        cc_images, mlo_images, labels = cc_images.to(device), mlo_images.to(device), labels.to(device)
+        outputs = model(cc_images, mlo_images)
+        loss = criterion(outputs, labels)
+        running_loss += loss.item() * cc_images.size(0)
         total += labels.size(0)
         preds = outputs.argmax(dim=1).cpu().numpy()
         all_preds.extend(preds)
@@ -171,8 +220,17 @@ def load_pretrained_backbone(model, checkpoint_path, device):
           + (f" -- ex: {skipped[:5]}" if skipped else ""))
 
 
-def build_client_data(name, batch_size):
-    if name == 'vindr':
+def build_client_data(name, batch_size, architecture='resnet50'):
+    if architecture == 'siamese':
+        if name == 'vindr':
+            train = VinDrPairedDataset(VINDR_ANNOTATIONS, VINDR_ROOT, split='training', use_augmentation=True)
+            test = VinDrPairedDataset(VINDR_ANNOTATIONS, VINDR_ROOT, split='test', use_augmentation=False)
+        elif name == 'ddsm':
+            train = DDSMPairedDataset(DDSM_ANNOTATIONS, split='training', use_augmentation=True)
+            test = DDSMPairedDataset(DDSM_ANNOTATIONS, split='test', use_augmentation=False)
+        else:
+            raise ValueError(name)
+    elif name == 'vindr':
         train = VinDrCCDataset(VINDR_ANNOTATIONS, VINDR_ROOT, split='training', use_augmentation=True)
         test = VinDrCCDataset(VINDR_ANNOTATIONS, VINDR_ROOT, split='test', use_augmentation=False)
     elif name == 'ddsm':
@@ -195,16 +253,28 @@ def build_client_data(name, batch_size):
 
 
 def run_federated(rounds, local_epochs, batch_size, lr, out_dir, resume=False, min_weight=None,
-                   pretrained_checkpoint=None):
+                   pretrained_checkpoint=None, architecture='resnet50'):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     os.makedirs(out_dir, exist_ok=True)
 
-    print("[FED] Préparation des données des 2 clients...")
-    vindr_train, vindr_val, vindr_test, n_vindr = build_client_data('vindr', batch_size)
-    ddsm_train, ddsm_val, ddsm_test, n_ddsm = build_client_data('ddsm', batch_size)
-    print(f"[FED] H1 VinDr-Mammo: {n_vindr} images train | H2 DDSM/CBIS-DDSM: {n_ddsm} images train")
+    is_siamese = architecture == 'siamese'
+    train_fn = local_train_paired if is_siamese else local_train
+    eval_fn = evaluate_paired if is_siamese else evaluate
+    unit = "paires CC+MLO" if is_siamese else "images"
 
-    global_model = ResNet50DensityClassifier(num_classes=4).to(device)
+    print(f"[FED] Préparation des données des 2 clients (architecture={architecture})...")
+    vindr_train, vindr_val, vindr_test, n_vindr = build_client_data('vindr', batch_size, architecture)
+    ddsm_train, ddsm_val, ddsm_test, n_ddsm = build_client_data('ddsm', batch_size, architecture)
+    print(f"[FED] H1 VinDr-Mammo: {n_vindr} {unit} train | H2 DDSM/CBIS-DDSM: {n_ddsm} {unit} train")
+
+    if is_siamese:
+        global_model = SiameseFederatedClassifier(num_classes=4).to(device)
+        if pretrained_checkpoint:
+            print("[FED] --pretrained_checkpoint ignore pour l'architecture siamoise "
+                  "(pas de mapping de poids implemente entre Approche 2 et ce modele) -- depart ImageNet.")
+            pretrained_checkpoint = None
+    else:
+        global_model = ResNet50DensityClassifier(num_classes=4).to(device)
     history = {"round": [], "vindr_val_acc": [], "ddsm_val_acc": [], "global_val_acc": [],
                "vindr_train_acc": [], "ddsm_train_acc": [],
                "vindr_val_loss": [], "ddsm_val_loss": [], "global_val_loss": [],
@@ -241,10 +311,11 @@ def run_federated(rounds, local_epochs, batch_size, lr, out_dir, resume=False, m
         local_states, local_ns, local_train_accs, local_train_losses = [], [], [], []
 
         for name, loader, n in [("H1-VinDr", vindr_train, n_vindr), ("H2-DDSM", ddsm_train, n_ddsm)]:
-            local_model = ResNet50DensityClassifier(num_classes=4).to(device)
+            local_model = (SiameseFederatedClassifier(num_classes=4) if is_siamese
+                           else ResNet50DensityClassifier(num_classes=4)).to(device)
             local_model.load_state_dict(global_model.state_dict())
-            print(f"  [ClientUpdate {name}] {local_epochs} époque(s) locale(s) sur {n} images...")
-            state_dict, train_acc, train_loss = local_train(local_model, loader, device, local_epochs, lr)
+            print(f"  [ClientUpdate {name}] {local_epochs} époque(s) locale(s) sur {n} {unit}...")
+            state_dict, train_acc, train_loss = train_fn(local_model, loader, device, local_epochs, lr)
             local_states.append(state_dict)
             local_ns.append(n)
             local_train_accs.append(train_acc)
@@ -253,8 +324,8 @@ def run_federated(rounds, local_epochs, batch_size, lr, out_dir, resume=False, m
 
         global_model.load_state_dict(fedavg_aggregate(local_states, local_ns, min_weight=min_weight))
 
-        vindr_val_acc, vindr_val_loss, _, _ = evaluate(global_model, vindr_val, device)
-        ddsm_val_acc, ddsm_val_loss, _, _ = evaluate(global_model, ddsm_val, device)
+        vindr_val_acc, vindr_val_loss, _, _ = eval_fn(global_model, vindr_val, device)
+        ddsm_val_acc, ddsm_val_loss, _, _ = eval_fn(global_model, ddsm_val, device)
         n_total = n_vindr + n_ddsm
         global_val_acc = (vindr_val_acc * n_vindr + ddsm_val_acc * n_ddsm) / n_total
         global_val_loss = (vindr_val_loss * n_vindr + ddsm_val_loss * n_ddsm) / n_total
@@ -291,7 +362,7 @@ def run_federated(rounds, local_epochs, batch_size, lr, out_dir, resume=False, m
     global_model.load_state_dict(torch.load(os.path.join(out_dir, "federated_global_best.pth"), map_location=device))
 
     for name, loader in [("VinDr-Mammo (H1)", vindr_test), ("DDSM/CBIS-DDSM (H2)", ddsm_test)]:
-        acc, loss, labels, preds = evaluate(global_model, loader, device)
+        acc, loss, labels, preds = eval_fn(global_model, loader, device)
         print(f"\n--- Test {name}: {acc*100:.2f}% (loss {loss:.4f}) ---")
         print(confusion_matrix(labels, preds, labels=[0, 1, 2, 3]))
         print(classification_report(labels, preds, labels=[0, 1, 2, 3], target_names=DENSITY_CLASSES, zero_division=0))
@@ -373,12 +444,17 @@ if __name__ == "__main__":
     parser.add_argument("--pretrained_checkpoint", default=None,
                          help="Chemin vers un backbone ResNet50 deja fine-tune (ex: Approche 2, "
                               "featuresfinetuned_weights/resnet50_finetuned_best.pth) utilise comme poids "
-                              "initiaux W0 du modele federe, a la place d'ImageNet brut")
+                              "initiaux W0 du modele federe, a la place d'ImageNet brut (architecture "
+                              "resnet50 uniquement)")
+    parser.add_argument("--architecture", choices=["resnet50", "siamese"], default="resnet50",
+                         help="resnet50 : une seule branche, une image (Approche 2). "
+                              "siamese : deux branches a poids partages sur des paires CC+MLO du "
+                              "meme sein (Approche 6, variante siamoise)")
     args = parser.parse_args()
 
     if args.mode == "federated":
         run_federated(args.rounds, args.local_epochs, args.batch_size, args.lr, args.out_dir,
                        resume=args.resume, min_weight=args.min_weight,
-                       pretrained_checkpoint=args.pretrained_checkpoint)
+                       pretrained_checkpoint=args.pretrained_checkpoint, architecture=args.architecture)
     else:
         run_centralized(args.epochs, args.batch_size, args.lr, args.out_dir)

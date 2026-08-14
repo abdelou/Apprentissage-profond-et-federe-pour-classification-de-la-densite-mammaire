@@ -419,11 +419,11 @@ class ImageBranchManager:
                     'patience_counter': patience_counter
                 }, checkpoint_path)
                 
-                print(f"  ✅ Nouveau meilleur modèle! Acc: {val_acc:.2f}%")
-                print(f"  💾 Modèle sauvegardé: {best_model_path}")
+                print(f"   Nouveau meilleur modèle! Acc: {val_acc:.2f}%")
+                print(f"   Modèle sauvegardé: {best_model_path}")
             else:
                 patience_counter += 1
-                print(f"  ⏳ Pas d'amélioration ({patience_counter}/{patience})")
+                print(f"  Pas d'amélioration ({patience_counter}/{patience})")
             
             # Early stopping
             if patience_counter >= patience:

@@ -34,7 +34,7 @@ import os
 from collections import defaultdict
 
 # Chemin vers le dossier output
-output_root = "G:/MA1/vindr-mammo-a-large-scale-benchmark-dataset-for-computer-aided-detection-and-diagnosis-in-full-field-digital-mammography-1.0.0/output"
+output_root = "/vindr-mammo-a-large-scale-benchmark-dataset-for-computer-aided-detection-and-diagnosis-in-full-field-digital-mammography-1.0.0/output"
 
 # Dictionnaire pour stocker les comptes
 compte = defaultdict(lambda: defaultdict(int))

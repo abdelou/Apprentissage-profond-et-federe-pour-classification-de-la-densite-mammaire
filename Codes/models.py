@@ -1,9 +1,5 @@
 import sys
 import os
-
-# Chemin vers le dossier contenant models.py
- # adapte ce chemin si besoin
-sys.path.insert(0, "/kaggle/input/stages/Codes")
 import torch
 import torch.nn as nn
 from timm import create_model

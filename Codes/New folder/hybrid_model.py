@@ -636,4 +636,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"ViT non disponible: {e}")
     
-    print("\n✅ Test du modèle hybride terminé!") 
+    print("\n Test du modèle hybride terminé!") 

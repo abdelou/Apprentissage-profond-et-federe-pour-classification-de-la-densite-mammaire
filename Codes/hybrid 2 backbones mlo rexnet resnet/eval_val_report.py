@@ -53,7 +53,7 @@ with torch.no_grad():
         all_preds.extend(preds)
         all_labels.extend(labels.numpy())
 
-print(f"\n🏆 ACCURACY VALIDATION ({tag}): {accuracy_score(all_labels, all_preds)*100:.2f}%")
+print(f"\n ACCURACY VALIDATION ({tag}): {accuracy_score(all_labels, all_preds)*100:.2f}%")
 print("\nMatrice de confusion (validation):")
 print(confusion_matrix(all_labels, all_preds))
 print("\nRapport de classification (validation):")

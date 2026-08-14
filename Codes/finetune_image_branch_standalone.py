@@ -132,7 +132,7 @@ def run_standalone_image_branch(view_position='CC', backbone='cnn', epochs=5, ba
     os.makedirs("featuresfinetuned_weights", exist_ok=True)
     
     if os.path.exists(best_weights_path):
-        print(f"✅ Modèle déjà entraîné trouvé à {best_weights_path}! Passage direct à l'évaluation de test...")
+        print(f" Modèle déjà entraîné trouvé à {best_weights_path}! Passage direct à l'évaluation de test...")
     else:
         for epoch in range(epochs):
             model.train()
@@ -169,7 +169,7 @@ def run_standalone_image_branch(view_position='CC', backbone='cnn', epochs=5, ba
             if val_acc > best_val_acc:
                 best_val_acc = val_acc
                 torch.save(model.state_dict(), best_weights_path)
-                print(f"✅ Nouveau meilleur modèle sauvegardé: {best_weights_path} ({val_acc*100:.2f}%)")
+                print(f" Nouveau meilleur modèle sauvegardé: {best_weights_path} ({val_acc*100:.2f}%)")
             
     # ÉVALUATION TEST FINAL
     print(f"\n=======================================================")

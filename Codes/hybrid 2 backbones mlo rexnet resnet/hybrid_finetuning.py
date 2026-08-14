@@ -204,7 +204,7 @@ def train_and_eval(view=VIEW, backbone_a='rexnet_150', backbone_b='resnet50', ep
             all_labels.extend(labels.numpy())
 
     from sklearn.metrics import accuracy_score
-    print(f"\n🏆 ACCURACY TEST FINAL ({tag}): {accuracy_score(all_labels, all_preds)*100:.2f}%")
+    print(f"\n ACCURACY TEST FINAL ({tag}): {accuracy_score(all_labels, all_preds)*100:.2f}%")
     print("\nMatrice de confusion:")
     print(confusion_matrix(all_labels, all_preds))
     print("\nRapport de classification:")

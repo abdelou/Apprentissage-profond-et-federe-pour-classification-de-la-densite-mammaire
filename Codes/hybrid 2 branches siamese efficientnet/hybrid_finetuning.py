@@ -429,7 +429,7 @@ class HybridModelManager:
             start_epoch = checkpoint_data.get('epoch', -1) + 1
             best_val_acc = checkpoint_data.get('best_accuracy', 0.0)
             patience_counter = checkpoint_data.get('patience_counter', 0)
-            print(f"  ✅ Checkpoint restauré! Reprise à l'époque {start_epoch + 1}/{epochs} (Meilleure accuracy: {best_val_acc:.2f}%)")
+            print(f"  Checkpoint restauré! Reprise à l'époque {start_epoch + 1}/{epochs} (Meilleure accuracy: {best_val_acc:.2f}%)")
 
         # Créer le dossier de sauvegarde
         os.makedirs(save_dir, exist_ok=True)
@@ -548,11 +548,11 @@ class HybridModelManager:
                     'patience_counter': patience_counter
                 }, checkpoint_path)
 
-                print(f"  ✅ Nouveau meilleur modèle! Acc: {val_acc:.2f}%")
-                print(f"  💾 Modèle sauvegardé: {best_model_path}")
+                print(f"   Nouveau meilleur modèle! Acc: {val_acc:.2f}%")
+                print(f"   Modèle sauvegardé: {best_model_path}")
             else:
                 patience_counter += 1
-                print(f"  ⏳ Pas d'amélioration ({patience_counter}/{patience})")
+                print(f"   Pas d'amélioration ({patience_counter}/{patience})")
 
             # Early stopping
             if patience_counter >= patience:
@@ -615,7 +615,7 @@ def main():
             shared_weights=None,
         )
         
-        print(f"\n✅ Entraînement terminé!")
+        print(f"\n Entraînement terminé!")
         
     except Exception as e:
         print(f"Erreur lors de l'entraînement: {e}")

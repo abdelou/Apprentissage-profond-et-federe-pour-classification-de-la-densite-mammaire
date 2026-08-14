@@ -1,9 +1,9 @@
 """
-Calcule les vrais chiffres pour la section "Data Augmentation" du memoire :
+Calcule les vrais chiffres pour la section "Data Augmentation"  :
   1) repartition des images par densite et par split (train/test), AVANT
      augmentation (comptage brut du CSV VinDr-Mammo)
   2) repartition APRES augmentation, en reproduisant exactement la meme
-     logique de suréchantillonnage que celle utilisee dans le code
+     logique de suréchantillonnage que celle utilisee 
      d'entrainement (target_count = 50% de la classe majoritaire, voir
      HybridGLCMDataset / HybridMammographyDataset)
   3) verification de la coherence gauche/droite : pour une meme patiente

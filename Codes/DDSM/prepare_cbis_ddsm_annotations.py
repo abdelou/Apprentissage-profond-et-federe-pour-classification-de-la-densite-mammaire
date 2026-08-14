@@ -9,7 +9,7 @@ des ANOMALIES (une image peut apparaître plusieurs fois si elle a plusieurs ano
 On déduplique donc par (patient_id, side, view, split) puisque la densité mammaire
 est une propriété du sein, pas de l'anomalie.
 
-Problème résolu ici : les noms de fichiers réels sur disque (UUID, ex.
+ici : les noms de fichiers réels sur disque (UUID, ex.
 "9587fd8e-e6d7-4de0-83c8-d945c6f5330c.dcm") ne correspondent PAS aux noms indiqués
 dans la colonne "image file path" des CSV (ex. "000000.dcm") — TCIA/NBIA a renommé
 les fichiers au téléchargement. De plus, le dossier "sans suffixe" attendu pour

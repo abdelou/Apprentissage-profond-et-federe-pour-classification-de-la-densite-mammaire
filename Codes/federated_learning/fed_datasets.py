@@ -99,3 +99,98 @@ class DDSMDataset(Dataset):
             return image, row['label']
         except Exception:
             return torch.randn(1, 224, 224), 0
+
+
+def _build_cc_mlo_pairs(df):
+    """Regroupe un DataFrame annote (study_id, laterality, view_position) en
+    paires CC+MLO du meme sein. Un sein sans les deux vues est ignore (pas de
+    duplication d'une vue pour combler l'autre, contrairement a la version non
+    federee de l'Approche 6 -- ici on garde des paires reelles uniquement, pour
+    que n_k (utilise dans l'agregation FedAvg) reste un compte honnete)."""
+    pairs = []
+    for (study_id, laterality), group in df.groupby(['study_id', 'laterality']):
+        cc_rows = group[group['view_position'] == 'CC']
+        mlo_rows = group[group['view_position'] == 'MLO']
+        if cc_rows.empty or mlo_rows.empty:
+            continue
+        cc_row, mlo_row = cc_rows.iloc[0], mlo_rows.iloc[0]
+        pairs.append({
+            'study_id': study_id,
+            'laterality': laterality,
+            'cc_row': cc_row,
+            'mlo_row': mlo_row,
+            'label': cc_row['label'],
+        })
+    return pairs
+
+
+class VinDrPairedDataset(Dataset):
+    """Client H1 (variante appariee) : VinDr-Mammo, paires CC+MLO du meme sein,
+    pour l'architecture siamoise (Approche 6, meilleure variante du memoire)."""
+
+    def __init__(self, annotations_csv, image_root, split='training', use_augmentation=False):
+        df = pd.read_csv(annotations_csv)
+        df = df[df['split'] == split].copy()
+        df['label'] = df['breast_density'].map(CLASS_MAP)
+        self.pairs = _build_cc_mlo_pairs(df)
+        self.image_root = image_root
+        self.split = split
+        self.density_map = {"DENSITY A": "density_A", "DENSITY B": "density_B", "DENSITY C": "density_C", "DENSITY D": "density_D"}
+        self.split_folder = {"training": "train", "test": "test"}
+        self.transform = _transform(use_augmentation)
+
+    def __len__(self):
+        return len(self.pairs)
+
+    def _load(self, row):
+        study_id, image_id = row['study_id'], row['image_id']
+        density = self.density_map.get(row["breast_density"])
+        split_folder = self.split_folder.get(row["split"], "train")
+        image_path = os.path.join(self.image_root, split_folder, density, study_id, f"{image_id}.dicom")
+        if not os.path.exists(image_path):
+            image_path = os.path.join(self.image_root, 'images', study_id, f"{image_id}.dicom")
+            if not os.path.exists(image_path):
+                image_path = os.path.join(self.image_root, study_id, f"{image_id}.dicom")
+        image = read_dicom(image_path)
+        image = preprocess_image(image, laterality=row["laterality"])
+        return self.transform(_to_pil(image))
+
+    def __getitem__(self, idx):
+        pair = self.pairs[idx]
+        try:
+            cc_tensor = self._load(pair['cc_row'])
+            mlo_tensor = self._load(pair['mlo_row'])
+            return cc_tensor, mlo_tensor, pair['label']
+        except Exception:
+            return torch.randn(1, 224, 224), torch.randn(1, 224, 224), 0
+
+
+class DDSMPairedDataset(Dataset):
+    """Client H2 (variante appariee) : DDSM/CBIS-DDSM, paires CC+MLO du meme sein.
+    283/341 seins du train ont les deux vues (verifie sur le CSV resolu par
+    prepare_cbis_ddsm_annotations.py) -- les 58 restants (une seule vue) sont
+    exclus plutot que d'etre completes artificiellement."""
+
+    def __init__(self, annotations_csv, split='training', use_augmentation=False):
+        df = pd.read_csv(annotations_csv)
+        df = df[df['split'] == split].copy()
+        df['label'] = df['breast_density'].map(CLASS_MAP)
+        self.pairs = _build_cc_mlo_pairs(df)
+        self.transform = _transform(use_augmentation)
+
+    def __len__(self):
+        return len(self.pairs)
+
+    def _load(self, row):
+        image = read_dicom(row['image_path'])
+        image = preprocess_image(image, laterality=row["laterality"])
+        return self.transform(_to_pil(image))
+
+    def __getitem__(self, idx):
+        pair = self.pairs[idx]
+        try:
+            cc_tensor = self._load(pair['cc_row'])
+            mlo_tensor = self._load(pair['mlo_row'])
+            return cc_tensor, mlo_tensor, pair['label']
+        except Exception:
+            return torch.randn(1, 224, 224), torch.randn(1, 224, 224), 0

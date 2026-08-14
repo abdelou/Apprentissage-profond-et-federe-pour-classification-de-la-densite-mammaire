@@ -81,9 +81,9 @@ def test_backbone(backbone_name='cnn', weights_path='featuresfinetuned_weights/h
         if 'model_state_dict' in state_dict:
             state_dict = state_dict['model_state_dict']
         model.load_state_dict(state_dict, strict=False)
-        print(f"✅ Poids {backbone_name.upper()} chargés avec succès!")
+        print(f" Poids {backbone_name.upper()} chargés avec succès!")
     else:
-        print(f"⚠️ Poids non trouvés à {weights_path}")
+        print(f"  Poids non trouvés à {weights_path}")
         
     model.to(DEVICE)
     model.eval()

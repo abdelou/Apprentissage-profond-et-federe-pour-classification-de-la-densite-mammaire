@@ -7,7 +7,7 @@ from torchvision import transforms
 from preprocessing import read_dicom, preprocess_image, normalize_intensity_global
 from PIL import Image
 #%% Charger le fichier DICOM
-root = 'G:/MA1/vindr-mammo-a-large-scale-benchmark-dataset-for-computer-aided-detection-and-diagnosis-in-full-field-digital-mammography-1.0.0/output/train/density_A'
+root = '/home_nfs/abdelouahada/vindr-mammo-a-large-scale-benchmark-dataset-for-computer-aided-detection-and-diagnosis-in-full-field-digital-mammography-1.0.0/output/train/density_A'
 dossier = '5051671fd96995d0b3248f6eb7e8a2bc'
 image_id = '2a74ba51e0db4679a7cb6ec34ddc1250.dicom'
 path = root + '/' + dossier + '/' + image_id
@@ -81,7 +81,7 @@ plt.title("Image DICOM sans annotations")
 plt.axis("off")
 plt.show()
 # %%
-root = 'G:/MA1/vindr-mammo-a-large-scale-benchmark-dataset-for-computer-aided-detection-and-diagnosis-in-full-field-digital-mammography-1.0.0/output/train/density_D'
+root = '/home_nfs/abdelouahada/vindr-mammo-a-large-scale-benchmark-dataset-for-computer-aided-detection-and-diagnosis-in-full-field-digital-mammography-1.0.0/output/train/density_D'
 dossier = '00bed569a272c750cf03b561886a1489'
 image_id = 'cf71975732419786732a6c0f9c106868.dicom'
 path = root + '/' + dossier + '/' + image_id

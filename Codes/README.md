@@ -1,6 +1,6 @@
 # Classification de la densité mammaire — Apprentissage profond et fédéré
 
-Mémoire de Master (UMONS, Faculté Polytechnique) : *Apprentissage profond et
+Mémoire de Master (UMONS, Faculté sciences ) : *Apprentissage profond et
 fédéré pour la classification de la densité mammaire pour la prédiction du
 cancer du sein*.
 
@@ -148,5 +148,5 @@ les hyperparamètres recommandés par backbone.
 
 ## Auteur
 
-ALLA Abdelouahad — UMONS, Faculté Polytechnique.
+ALLA Abdelouahad — UMONS, Faculté Sciences.
 Encadrement : Xavier Lessage (CETIC), Prof. Saïd Mahmoudi (UMONS).

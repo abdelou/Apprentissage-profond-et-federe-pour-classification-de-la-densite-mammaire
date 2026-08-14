@@ -1,5 +1,5 @@
 # Requirements pour le projet de classification de densité mammaire
-# Stage MA1-IG - Classification automatique de la densité mammaire par Vision Transformers
+# Mémoire  IA  - Classification automatique de la densité mammaire par Vision Transformers
 
 # =============================================================================
 # LIBRAIRIES DE BASE

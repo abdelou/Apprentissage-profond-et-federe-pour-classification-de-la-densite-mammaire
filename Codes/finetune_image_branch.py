@@ -490,7 +490,7 @@ def main():
             resume_from=args.resume_from
         )
 
-        print(f"\n✅ Fine-tuning terminé!")
+        print(f"\n Fine-tuning terminé!")
 
         # Évaluation sur l'ensemble de test
         print("\nÉvaluation sur l'ensemble de test jamais vu pendant l'entraînement...")

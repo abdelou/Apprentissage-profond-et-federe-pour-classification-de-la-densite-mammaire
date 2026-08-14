@@ -161,7 +161,7 @@ def train_and_eval_glcm(view_position='MLO', backbone='cnn', epochs=5, batch_siz
     history = {"epochs": [], "train_acc": [], "val_acc": [], "train_loss": [], "val_loss": []}
 
     if os.path.exists(best_weights_path):
-        print(f"✅ Modèle GLCM déjà entraîné trouvé à {best_weights_path}! Passage direct à l'évaluation de test sur les 2 000 images...")
+        print(f"Modèle GLCM déjà entraîné trouvé à {best_weights_path}! Passage direct à l'évaluation de test sur les 2 000 images...")
         print("   (Pour relancer l'entraînement avec le code corrigé, supprimez ce fichier .pth d'abord.)")
     else:
         for epoch in range(epochs):
@@ -211,7 +211,7 @@ def train_and_eval_glcm(view_position='MLO', backbone='cnn', epochs=5, batch_siz
             if val_acc > best_val_acc:
                 best_val_acc = val_acc
                 torch.save(model.state_dict(), best_weights_path)
-                print(f"✅ Meilleur modèle GLCM sauvegardé: {best_weights_path} ({val_acc*100:.2f}%)")
+                print(f" Meilleur modèle GLCM sauvegardé: {best_weights_path} ({val_acc*100:.2f}%)")
 
             scheduler.step()
 
@@ -231,7 +231,7 @@ def train_and_eval_glcm(view_position='MLO', backbone='cnn', epochs=5, batch_siz
             all_preds.extend(preds)
             all_labels.extend(labels.numpy())
             
-    print(f"\n🏆 ACCURACY TEST FINAL HYBRIDE GLCM ({view_position}): {accuracy_score(all_labels, all_preds)*100:.2f}%")
+    print(f"\n ACCURACY TEST FINAL HYBRIDE GLCM ({view_position}): {accuracy_score(all_labels, all_preds)*100:.2f}%")
     print("\nMatrice de confusion:")
     print(confusion_matrix(all_labels, all_preds))
     print("\nRapport de classification:")
