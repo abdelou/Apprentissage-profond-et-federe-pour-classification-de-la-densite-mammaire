@@ -3,74 +3,63 @@ import numpy as np
 import pydicom
 import cv2
 from glob import glob
-from typing import List, Tuple
 from PIL import Image
 
-def read_dicom(path: str) -> np.ndarray:
-    """Lit un fichier DICOM et retourne l'image sous forme de numpy array."""
+def read_dicom(path):
+    # Lecture d'un fichier DICOM
     try:
-        # Nettoyer le chemin des caractères nuls et le normaliser
         clean_path = os.path.normpath(path.replace('\x00', ''))
-        print(f"[DICOM] Tentative de lecture de: {clean_path}")
+        print(f"Lecture DICOM : {clean_path}")
         ds = pydicom.dcmread(clean_path)
         img = ds.pixel_array.astype(np.float32)
         
-        # Gestion de la photométrie DICOM
         photometric_interpretation = getattr(ds, 'PhotometricInterpretation', 'MONOCHROME2')
     except Exception as e:
-        print(f"[DICOM] Erreur lors de la lecture du fichier: {str(e)}")
+        print(f"Erreur lecture DICOM: {str(e)}")
         raise
     
-    # Inversion si nécessaire pour avoir un fond noir cohérent
+    # Inversion si c'est monochrome1
     if photometric_interpretation == 'MONOCHROME1':
-        # Fond blanc -> Fond noir (inversion)
         img = ds.BitsAllocated - img - 1
-        print(f"[DICOM] Image inversée (MONOCHROME1): {path}")
+        print(f"Image MONOCHROME1 inversée : {path}")
     elif photometric_interpretation == 'MONOCHROME2':
-        # Déjà en fond noir, pas d'inversion nécessaire
-        print(f"[DICOM] Image normale (MONOCHROME2): {path}")
+        print(f"Image MONOCHROME2 standard : {path}")
     else:
-        print(f"[DICOM] Photométrie inconnue: {photometric_interpretation}")
+        print(f"Photométrie non reconnue : {photometric_interpretation}")
     
     return img
 
-def merge_lr_images(left_img: np.ndarray, right_img: np.ndarray) -> np.ndarray:
-    """Fusionne horizontalement les images gauche et droite."""
+def merge_lr_images(left_img, right_img):
+    # Fusionner les deux images (gauche et droite) horizontalement
     h = min(left_img.shape[0], right_img.shape[0])
     left_img = cv2.resize(left_img, (left_img.shape[1], h))
     right_img = cv2.resize(right_img, (right_img.shape[1], h))
     merged = np.hstack([left_img, right_img])
     return merged
 
-def remove_background(img: np.ndarray, threshold=10) -> np.ndarray:
-    """Supprime le fond par seuillage simple."""
+def remove_background(img, threshold=10):
+    # Enlever le fond avec un seuil simple
     mask = img > threshold
     img_clean = img * mask
     return img_clean
 
-def normalize_intensity_global(img: np.ndarray, min_val=None, max_val=None) -> np.ndarray:
-    """
-    Normalise l'intensité avec des valeurs globales ou par image.
-    Si min_val et max_val sont None, normalise par image.
-    """
+def normalize_intensity_global(img, min_val=None, max_val=None):
+    # Normalisation de l'intensité
     if min_val is None or max_val is None:
-        # Normalisation par image (comportement actuel)
         img = img - np.min(img)
         img = img / (np.max(img) + 1e-8)
     else:
-        # Normalisation avec valeurs globales
         img = np.clip(img, min_val, max_val)
         img = (img - min_val) / (max_val - min_val + 1e-8)
     
     img = (img * 255).astype(np.uint8)
     return img
 
-def normalize_intensity(img: np.ndarray) -> np.ndarray:
-    """Normalise l'intensité entre 0 et 255 (compatibilité)."""
+def normalize_intensity(img):
     return normalize_intensity_global(img)
 
-def crop_lateral(img: np.ndarray, laterality: str) -> np.ndarray:
-    """Rogne 700 pixels à gauche si 'R', à droite si 'L'."""
+def crop_lateral(img, laterality):
+    # Rogner les bords selon le cote gauche ou droit
     if laterality == 'R':
         return img[:, 700:]
     elif laterality == 'L':
@@ -78,34 +67,22 @@ def crop_lateral(img: np.ndarray, laterality: str) -> np.ndarray:
     else:
         return img
 
-def preprocess_image(img: np.ndarray, size=(224, 224), laterality: str = None, 
-                    normalize_global=False, global_min=None, global_max=None) -> np.ndarray:
-    """
-    Prétraite l'image avec gestion cohérente de la photométrie.
-    
-    Args:
-        img: Image numpy array
-        size: Taille de sortie
-        laterality: Latéralité ('L' ou 'R')
-        normalize_global: Si True, utilise une normalisation globale
-        global_min: Valeur minimale globale pour la normalisation
-        global_max: Valeur maximale globale pour la normalisation
-    """
+def preprocess_image(img, size=(224, 224), laterality=None, 
+                     normalize_global=False, global_min=None, global_max=None):
+    # Pretraitement de l'image (rognage, redimensionnement et normalisation)
     if laterality is not None:
         img = crop_lateral(img, laterality)
         if laterality == 'L':
-            img = np.fliplr(img)  # symétrie verticale (gauche-droite) pour avoir la meme orientation que les images de la base de donnees
+            img = np.fliplr(img) # retourner l'image pour avoir la meme orientation
     
-    # Redimensionnement
     img = cv2.resize(img, size)
     
-    # Normalisation
     if normalize_global and global_min is not None and global_max is not None:
         img = normalize_intensity_global(img, global_min, global_max)
     else:
         img = normalize_intensity_global(img)
     
-    # Conversion en RGB pour les backbones vision modernes (ViT, ResNet, etc.)
+    # Conversion en 3 canaux
     if img.ndim == 2:
         img = np.repeat(img[..., None], 3, axis=2)
     elif img.ndim == 3 and img.shape[2] == 1:
@@ -113,7 +90,8 @@ def preprocess_image(img: np.ndarray, size=(224, 224), laterality: str = None,
 
     return img
 
-def process_patient(left_path: str, right_path: str) -> np.ndarray:
+def process_patient(left_path, right_path):
+    # Process complet pour un patient
     left_img = read_dicom(left_path)
     right_img = read_dicom(right_path)
     left_img = remove_background(left_img)
@@ -123,10 +101,8 @@ def process_patient(left_path: str, right_path: str) -> np.ndarray:
     merged = preprocess_image(merged)
     return merged
 
-def analyze_dicom_metadata(dicom_path: str) -> dict:
-    """
-    Analyse les métadonnées DICOM pour diagnostiquer les problèmes de photométrie.
-    """
+def analyze_dicom_metadata(dicom_path):
+    # Récupérer les métadonnées principales du dicom
     ds = pydicom.dcmread(dicom_path)
     
     metadata = {
@@ -143,10 +119,8 @@ def analyze_dicom_metadata(dicom_path: str) -> dict:
     
     return metadata
 
-def batch_analyze_photometry(data_csv: str, image_root: str, sample_size=10):
-    """
-    Analyse la photométrie d'un échantillon d'images pour identifier les incohérences.
-    """
+def batch_analyze_photometry(data_csv, image_root, sample_size=10):
+    # Analyse de la photometrie d'un lot d'images
     import pandas as pd
     import random
     
@@ -173,8 +147,8 @@ def batch_analyze_photometry(data_csv: str, image_root: str, sample_size=10):
             photometry = metadata['PhotometricInterpretation']
             photometry_counts[photometry] = photometry_counts.get(photometry, 0) + 1
     
-    print("=== ANALYSE DE PHOTOMÉTRIE ===")
+    print("--- Analyse de la photometrie ---")
     for photometry, count in photometry_counts.items():
-        print(f"{photometry}: {count} images")
+        print(f"{photometry} : {count}")
     
-    return photometry_counts 
+    return photometry_counts

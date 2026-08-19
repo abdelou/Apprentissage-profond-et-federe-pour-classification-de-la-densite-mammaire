@@ -7,9 +7,8 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import os
 import argparse
 
-# --- Configuration dynamique selon le backbone ---
 def get_backbone_config(backbone_name):
-    """Retourne la configuration appropriée selon le backbone"""
+    # Configuration par backbone
     configs = {
         'vit': {'in_dim': 768, 'model_name': 'vit_base_patch16_224'},
         'deit': {'in_dim': 768, 'model_name': 'deit_base_patch16_224'},
@@ -24,139 +23,95 @@ def get_backbone_config(backbone_name):
         'cvt-13': {'in_dim': 384, 'model_name': 'microsoft/cvt-13'},
         'cvt-21': {'in_dim': 512, 'model_name': 'microsoft/cvt-21'},
         'cvt-w24': {'in_dim': 384, 'model_name': 'microsoft/cvt-w24-384-22k'}
-        
     }
     return configs.get(backbone_name, {'in_dim': 768, 'model_name': 'twins_pcpvt_large'})
 
 def test_backbone_availability(backbone_name):
-    """Teste si le backbone est disponible"""
     try:
         if backbone_name.startswith('cvt'):
-            # Test pour CVT via Hugging Face
             from transformers import AutoImageProcessor, AutoModel
-            config = get_backbone_config(backbone_name)
-            print(f"[TEST] Test de disponibilité pour {backbone_name} (Hugging Face)...")
-            # Test simple d'import
+            print(f"Test disponibilité {backbone_name} (Hugging Face)...")
             return True
         else:
-            # Test pour les modèles timm
             from timm import create_model
-            config = get_backbone_config(backbone_name)
-            print(f"[TEST] Test de disponibilité pour {backbone_name} (timm)...")
+            print(f"Test disponibilité {backbone_name} (timm)...")
             return True
     except ImportError as e:
-        print(f"[WARN] Backbone {backbone_name} non disponible: {e}")
+        print(f"Backbone {backbone_name} non disponible : {e}")
         return False
 
 def create_graphes_directory():
-    """Crée le dossier graphes s'il n'existe pas"""
     graphes_dir = "graphes"
     if not os.path.exists(graphes_dir):
         os.makedirs(graphes_dir)
-        print(f"[INFO] Dossier '{graphes_dir}' créé")
+        print(f"Dossier '{graphes_dir}' créé")
     return graphes_dir
 
 def save_plot(plt, filename, graphes_dir):
-    """Sauvegarde un graphique dans le dossier graphes"""
     filepath = os.path.join(graphes_dir, filename)
     plt.savefig(filepath, dpi=300, bbox_inches='tight')
-    print(f"[INFO] Graphique sauvegardé: {filepath}")
+    print(f"Graphique sauvegardé: {filepath}")
     plt.show()
 
-# --- Configuration par défaut ---
 BACKBONE = 'cvt-w24'
 N_CLASSES = 4
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 CLASS_NAMES = ['A', 'B', 'C', 'D']
 
-# --- Arguments en ligne de commande ---
 def parse_args():
-    parser = argparse.ArgumentParser(description='Test des modèles de classification mammographique')
+    parser = argparse.ArgumentParser()
     parser.add_argument('--backbone', type=str, default=BACKBONE,
                        choices=['vit', 'deit', 'swin', 'swinv2', 'pvt', 't2t_vit', 'twins', 
-                               'resnet', 'efficientnet', 'cvt', 'cvt-13', 'cvt-21', 'cvt-w24'],
-                       help='Backbone à tester')
-    parser.add_argument('--use_finetuned', action='store_true', default=True,
-                       help='Utiliser les features fine-tunées')
-    parser.add_argument('--no_finetuned', dest='use_finetuned', action='store_false',
-                       help='Ne pas utiliser les features fine-tunées')
-    parser.add_argument('--skip_availability_test', action='store_true',
-                       help='Passer le test de disponibilité du backbone')
+                               'resnet', 'efficientnet', 'cvt', 'cvt-13', 'cvt-21', 'cvt-w24'])
+    parser.add_argument('--use_finetuned', action='store_true', default=True)
+    parser.add_argument('--no_finetuned', dest='use_finetuned', action='store_false')
+    parser.add_argument('--skip_availability_test', action='store_true')
     return parser.parse_args()
 
 def main():
     args = parse_args()
     backbone = args.backbone
-    
-    # Création du dossier graphes
     graphes_dir = create_graphes_directory()
     
-    print(f"[TEST] Configuration:")
+    print("Configuration :")
     print(f"  - Backbone: {backbone}")
     print(f"  - Device: {DEVICE}")
     print(f"  - Features fine-tunées: {args.use_finetuned}")
-    print(f"  - Dossier graphes: {graphes_dir}")
     
-    # Test de disponibilité du backbone
     if not args.skip_availability_test:
         if not test_backbone_availability(backbone):
-            print(f"[ERROR] Backbone {backbone} non disponible. Arrêt du test.")
+            print(f"Backbone {backbone} non disponible. Arrêt.")
             return
     
-    # Configuration dynamique
     config = get_backbone_config(backbone)
     IN_DIM = config['in_dim']
-    print(f"[TEST] Dimension des features: {IN_DIM}")
+    print(f"Dimension des features: {IN_DIM}")
     
-    # Chemins des fichiers selon le backbone et les features
     suffix = "finetuned" if args.use_finetuned else ""
     FEATURES_PATH = f'{backbone}_{suffix}_features_test.npy'
     LABELS_PATH = f'{backbone}_{suffix}_labels_test.npy'
     
-    # --- Chargement des features et labels ---
-    print(f'[TEST] Chargement des features et labels de test...')
-    print(f'[TEST] Chemins: {FEATURES_PATH}, {LABELS_PATH}')
-    
+    print("Chargement des features et labels...")
     if not os.path.exists(FEATURES_PATH) or not os.path.exists(LABELS_PATH):
-        print(f'[ERROR] Fichiers de features non trouvés: {FEATURES_PATH}, {LABELS_PATH}')
-        print(f'[INFO] Assurez-vous d\'avoir extrait les features avec:')
-        print(f'       python training.py --mode dump_features --backbone {backbone}')
-        if args.use_finetuned:
-            print(f'       (avec --use_finetuned)')
-        else:
-            print(f'       (avec --no_finetuned)')
+        print(f"Fichiers non trouvés: {FEATURES_PATH}, {LABELS_PATH}")
         return
     
     features = np.load(FEATURES_PATH)
     labels = np.load(LABELS_PATH)
-    print(f'[TEST] Features shape: {features.shape}, Labels shape: {labels.shape}')
+    print(f"Features shape: {features.shape}, Labels shape: {labels.shape}")
     
-    # Vérification de la dimension des features
     if features.shape[1] != IN_DIM:
-        print(f'[WARN] Dimension des features ({features.shape[1]}) ne correspond pas à la configuration ({IN_DIM})')
+        print(f"Ajustement dimension features : {features.shape[1]} au lieu de {IN_DIM}")
         IN_DIM = features.shape[1]
-        print(f'[INFO] Utilisation de la dimension réelle: {IN_DIM}')
     
-    # --- Test du MLP 4 classes ---
-    print('\n[TEST] Évaluation du MLP 4 classes...')
+    # MLP 4 classes
+    print("\nÉvaluation du MLP 4 classes...")
     mlp = MLPClassifier(in_dim=IN_DIM, out_dim=N_CLASSES)
     
-    # Chemins des modèles selon les features utilisées
-    if args.use_finetuned:
-        #mlp_path = f'{backbone}_finetuned_mlp4.pth'
-        mlp_path = f'{backbone}_augmented_mlp4.pth'
-    else:
-        #mlp_path = f'{backbone}_mlp4.pth'
-        mlp_path = f'{backbone}_augmented_mlp4.pth'
+    mlp_path = f'{backbone}_augmented_mlp4.pth'
     
     if not os.path.exists(mlp_path):
-        print(f'[WARN] Modèle MLP 4 classes non trouvé: {mlp_path}')
-        print(f'[INFO] Entraînez le modèle avec:')
-        print(f'       python training.py --mode train_on_features --backbone {backbone} --train_mlp4')
-        if args.use_finetuned:
-            print(f'       (avec --use_finetuned)')
-        else:
-            print(f'       (avec --no_finetuned)')
+        print(f"Modèle MLP 4 classes non trouvé: {mlp_path}")
         return
     
     mlp.load_state_dict(torch.load(mlp_path, map_location=DEVICE))
@@ -170,16 +125,15 @@ def main():
 
     print(classification_report(labels, preds, target_names=CLASS_NAMES))
     
-    # Matrice de confusion MLP 4 classes
     cm = confusion_matrix(labels, preds)
     plt.figure(figsize=(6,5))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=CLASS_NAMES, yticklabels=CLASS_NAMES)
     plt.xlabel('Prédit')
     plt.ylabel('Vrai')
-    plt.title(f'Matrice de confusion - MLP 4 classes ({backbone}) avec data augmentation')
+    plt.title(f'Matrice de confusion - MLP 4 classes ({backbone})')
     save_plot(plt, f'{backbone}_mlp4_confusion_matrix.png', graphes_dir)
 
-    # --- ROC/AUC pour chaque classe (One-vs-Rest) ---
+    # ROC One-vs-Rest
     from sklearn.preprocessing import label_binarize
     labels_bin = label_binarize(labels, classes=list(range(N_CLASSES)))
     probs = torch.softmax(logits, dim=1).cpu().numpy()
@@ -191,14 +145,14 @@ def main():
     plt.plot([0,1],[0,1],'k--')
     plt.xlabel('FPR')
     plt.ylabel('TPR')
-    plt.title(f'Courbes ROC One-vs-Rest - MLP 4 classes ({backbone}) avec data augmentation')
+    plt.title(f'ROC One-vs-Rest - MLP 4 classes ({backbone})')
     plt.legend()
     plt.grid()
     save_plot(plt, f'{backbone}_mlp4_roc_curves.png', graphes_dir)
 
-    # --- Test des binaires ---
+    # Test des binaires
     from itertools import combinations
-    print('\n[TEST] Évaluation des classifieurs binaires...')
+    print('\nÉvaluation des classifieurs binaires...')
     for i, j in combinations(range(N_CLASSES), 2):
         mask = np.isin(labels, [i, j])
         features_bin = features[mask]
@@ -206,19 +160,13 @@ def main():
         labels_bin = (labels_bin == j).astype(int)
         
         if len(features_bin) == 0:
-            print(f'[WARN] Aucune donnée pour le binaire {CLASS_NAMES[i]} vs {CLASS_NAMES[j]}')
             continue
         
         mlp_bin = BinaryMLPClassifier(in_dim=IN_DIM)
         
-        # Chemins des modèles binaires selon les features utilisées
-        if args.use_finetuned:
-            bin_path = f'{backbone}_finetuned_binary_{i}_{j}.pth'
-        else:
-            bin_path = f'{backbone}_binary_{i}_{j}.pth'
+        bin_path = f'{backbone}_finetuned_binary_{i}_{j}.pth' if args.use_finetuned else f'{backbone}_binary_{i}_{j}.pth'
         
         if not os.path.exists(bin_path):
-            print(f'[WARN] Poids binaire {i} vs {j} non trouvés ({bin_path})')
             continue
             
         mlp_bin.load_state_dict(torch.load(bin_path, map_location=DEVICE))
@@ -230,10 +178,9 @@ def main():
             logits_bin = mlp_bin(Xb)
             preds_bin = logits_bin.argmax(dim=1).cpu().numpy()
             
-        print(f'\nBinaire {CLASS_NAMES[i]} vs {CLASS_NAMES[j]}:')
+        print(f'\nBinaire {CLASS_NAMES[i]} vs {CLASS_NAMES[j]} :')
         print(classification_report(labels_bin, preds_bin, target_names=[CLASS_NAMES[i], CLASS_NAMES[j]]))
         
-        # Matrice de confusion binaire
         cm_bin = confusion_matrix(labels_bin, preds_bin)
         plt.figure(figsize=(4,3))
         sns.heatmap(cm_bin, annot=True, fmt='d', cmap='Oranges', 
@@ -244,7 +191,6 @@ def main():
         plt.title(f'Matrice de confusion - Binaire {CLASS_NAMES[i]} vs {CLASS_NAMES[j]} ({backbone})')
         save_plot(plt, f'{backbone}_binary_{i}_{j}_confusion_matrix.png', graphes_dir)
         
-        # ROC/AUC binaire
         probs_bin = torch.softmax(logits_bin, dim=1).cpu().numpy()[:,1]
         fpr, tpr, _ = roc_curve(labels_bin, probs_bin)
         auc = roc_auc_score(labels_bin, probs_bin)
@@ -258,21 +204,16 @@ def main():
         plt.grid()
         save_plot(plt, f'{backbone}_binary_{i}_{j}_roc_curve.png', graphes_dir)
 
-    # --- Test du pipeline hiérarchique ---
-    print('\n[TEST] Évaluation du pipeline hiérarchique...')
+    # Test du pipeline hiérarchique
+    print('\nÉvaluation du pipeline hiérarchique...')
     hierarchical_model = HierarchicalClassifier(backbone, in_dim=IN_DIM, out_dim=N_CLASSES).to(DEVICE)
     
-    # Chargement du MLP 4 classes
     if os.path.exists(mlp_path):
         hierarchical_model.mlp4.load_state_dict(torch.load(mlp_path, map_location=DEVICE))
     
-    # Chargement des binaires
     for (i, j) in hierarchical_model.class_pairs:
         key = f"{i}_{j}"
-        if args.use_finetuned:
-            path = f'{backbone}_finetuned_binary_{i}_{j}.pth'
-        else:
-            path = f'{backbone}_binary_{i}_{j}.pth'
+        path = f'{backbone}_finetuned_binary_{i}_{j}.pth' if args.use_finetuned else f'{backbone}_binary_{i}_{j}.pth'
         if os.path.exists(path):
             hierarchical_model.binary_mlps[key].load_state_dict(torch.load(path, map_location=DEVICE))
     
@@ -293,7 +234,6 @@ def main():
     preds_hier = np.array(preds_hier)
     print(classification_report(labels, preds_hier, target_names=CLASS_NAMES))
     
-    # Matrice de confusion hiérarchique
     cm_hier = confusion_matrix(labels, preds_hier)
     plt.figure(figsize=(6,5))
     sns.heatmap(cm_hier, annot=True, fmt='d', cmap='Greens', xticklabels=CLASS_NAMES, yticklabels=CLASS_NAMES)
@@ -301,8 +241,6 @@ def main():
     plt.ylabel('Vrai')
     plt.title(f'Matrice de confusion - Pipeline hiérarchique ({backbone})')
     save_plot(plt, f'{backbone}_hierarchical_confusion_matrix.png', graphes_dir)
-    
-    print(f"\n[INFO] Tous les graphiques ont été sauvegardés dans le dossier '{graphes_dir}'")
 
 if __name__ == '__main__':
-    main() 
+    main()

@@ -30,3 +30,12 @@ tmp_*.csv
 
 # Fichiers système
 .DS_Store
+
+# Fichiers LaTeX et PDF du mémoire/présentation
+*.tex
+*.pdf
+*.aux
+*.out
+*.toc
+*.nav
+*.snm

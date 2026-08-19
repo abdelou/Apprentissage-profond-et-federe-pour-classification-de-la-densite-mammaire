@@ -149,7 +149,7 @@ def main():
     
     # Suggestions d'amélioration
     print("\n  SUGGESTIONS:")
-    if not torch.cuda.is_available():
+    if 'torch' in sys.modules and not torch.cuda.is_available():
         print("- Installez CUDA pour accélérer l'entraînement")
     print("- Utilisez un environnement virtuel pour isoler les dépendances")
     print("- Vérifiez régulièrement les mises à jour des packages")

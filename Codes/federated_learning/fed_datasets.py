@@ -11,7 +11,6 @@ from preprocessing import read_dicom, preprocess_image
 CLASS_MAP = {"DENSITY A": 0, "DENSITY B": 1, "DENSITY C": 2, "DENSITY D": 3}
 DENSITY_CLASSES = ["DENSITY A", "DENSITY B", "DENSITY C", "DENSITY D"]
 
-
 def _transform(use_augmentation):
     if use_augmentation:
         return transforms.Compose([
@@ -28,7 +27,6 @@ def _transform(use_augmentation):
         transforms.Normalize(mean=[0.485], std=[0.229]),
     ])
 
-
 def _to_pil(image_array):
     if len(image_array.shape) == 3:
         image_array = image_array[:, :, 0]
@@ -36,10 +34,8 @@ def _to_pil(image_array):
         image_array = image_array[0, :, :, 0] if len(image_array.shape) == 4 else image_array.squeeze()
     return Image.fromarray(image_array.astype(np.uint8), mode='L')
 
-
 class VinDrCCDataset(Dataset):
-    """Client H1 : VinDr-Mammo, vue CC uniquement (pour être comparable à DDSM/CBIS-DDSM)."""
-
+    # Dataset VinDr-Mammo (vue CC)
     def __init__(self, annotations_csv, image_root, split='training', use_augmentation=False):
         df = pd.read_csv(annotations_csv)
         df = df[(df['split'] == split) & (df['view_position'] == 'CC')].reset_index(drop=True)
@@ -74,12 +70,8 @@ class VinDrCCDataset(Dataset):
         except Exception:
             return torch.randn(1, 224, 224), 0
 
-
 class DDSMDataset(Dataset):
-    """Client H2 : DDSM/CBIS-DDSM (proxy technique pour HELORA), vue CC uniquement.
-    Consomme le CSV déjà résolu par prepare_cbis_ddsm_annotations.py (colonne
-    'image_path' pointant directement vers le bon fichier .dcm sur disque)."""
-
+    # Dataset DDSM/CBIS-DDSM (vue CC)
     def __init__(self, annotations_csv, split='training', use_augmentation=False):
         df = pd.read_csv(annotations_csv)
         df = df[df['split'] == split].reset_index(drop=True)
@@ -100,13 +92,30 @@ class DDSMDataset(Dataset):
         except Exception:
             return torch.randn(1, 224, 224), 0
 
+class INbreastDataset(Dataset):
+    # Dataset INbreast
+    def __init__(self, annotations_csv, split='training', use_augmentation=False):
+        df = pd.read_csv(annotations_csv)
+        df = df[df['split'] == split].reset_index(drop=True)
+        df['label'] = df['breast_density'].map(CLASS_MAP)
+        self.df = df
+        self.transform = _transform(use_augmentation)
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        row = self.df.iloc[idx]
+        try:
+            image = read_dicom(row['image_path'])
+            image = preprocess_image(image, laterality=row["laterality"])
+            image = self.transform(_to_pil(image))
+            return image, row['label']
+        except Exception:
+            return torch.randn(1, 224, 224), 0
 
 def _build_cc_mlo_pairs(df):
-    """Regroupe un DataFrame annote (study_id, laterality, view_position) en
-    paires CC+MLO du meme sein. Un sein sans les deux vues est ignore (pas de
-    duplication d'une vue pour combler l'autre, contrairement a la version non
-    federee de l'Approche 6 -- ici on garde des paires reelles uniquement, pour
-    que n_k (utilise dans l'agregation FedAvg) reste un compte honnete)."""
+    # Regrouper en paires CC+MLO pour le même sein
     pairs = []
     for (study_id, laterality), group in df.groupby(['study_id', 'laterality']):
         cc_rows = group[group['view_position'] == 'CC']
@@ -123,11 +132,8 @@ def _build_cc_mlo_pairs(df):
         })
     return pairs
 
-
 class VinDrPairedDataset(Dataset):
-    """Client H1 (variante appariee) : VinDr-Mammo, paires CC+MLO du meme sein,
-    pour l'architecture siamoise (Approche 6, meilleure variante du memoire)."""
-
+    # Dataset VinDr apparié CC+MLO
     def __init__(self, annotations_csv, image_root, split='training', use_augmentation=False):
         df = pd.read_csv(annotations_csv)
         df = df[df['split'] == split].copy()
@@ -164,13 +170,8 @@ class VinDrPairedDataset(Dataset):
         except Exception:
             return torch.randn(1, 224, 224), torch.randn(1, 224, 224), 0
 
-
 class DDSMPairedDataset(Dataset):
-    """Client H2 (variante appariee) : DDSM/CBIS-DDSM, paires CC+MLO du meme sein.
-    283/341 seins du train ont les deux vues (verifie sur le CSV resolu par
-    prepare_cbis_ddsm_annotations.py) -- les 58 restants (une seule vue) sont
-    exclus plutot que d'etre completes artificiellement."""
-
+    # Dataset DDSM apparié CC+MLO
     def __init__(self, annotations_csv, split='training', use_augmentation=False):
         df = pd.read_csv(annotations_csv)
         df = df[df['split'] == split].copy()

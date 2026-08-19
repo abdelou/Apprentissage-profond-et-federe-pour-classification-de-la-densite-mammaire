@@ -1,6 +1,6 @@
 # Classification de la densité mammaire — Apprentissage profond et fédéré
 
-Mémoire de Master (UMONS, Faculté sciences ) : *Apprentissage profond et
+Mémoire de Master (UMONS, Faculté des sciences ) : *Apprentissage profond et
 fédéré pour la classification de la densité mammaire pour la prédiction du
 cancer du sein*.
 

@@ -11,33 +11,29 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import classification_report, confusion_matrix
 
-# === CONFIGURATION ===
 BEST_WEIGHTS_PATH = "featuresfinetuned_weights/hybrid_model_best_cnn.pth"
 ANNOTATIONS_CSV = "DDSM/output_annotations.csv"
-# TODO: pointe vers ton propre export DDSM sur le cluster - à adapter.
 IMAGE_ROOT = "/home_nfs/abdelouahada/dataset_extracted/DDSM/"
 BATCH_SIZE = 8
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CLASS_MAP = {"DENSITY A": 0, "DENSITY B": 1, "DENSITY C": 2, "DENSITY D": 3}
 CLASS_NAMES = list(CLASS_MAP.keys())
 
-# === OUTDIR POUR LES GRAPHIQUES ===
 GRAPHES_DIR = "graphes"
 os.makedirs(GRAPHES_DIR, exist_ok=True)
 
 def save_plot(plt, filename, graphes_dir=GRAPHES_DIR):
     filepath = os.path.join(graphes_dir, filename)
     plt.savefig(filepath, dpi=300, bbox_inches='tight')
-    print(f"[INFO] Graphique sauvegardé: {filepath}")
+    print(f"Graphique sauvegardé: {filepath}")
     plt.close()
 
 def save_text_report(report, filename, graphes_dir=GRAPHES_DIR):
     filepath = os.path.join(graphes_dir, filename)
     with open(filepath, 'w') as f:
         f.write(report)
-    print(f"[INFO] Rapport texte sauvegardé: {filepath}")
+    print(f"Rapport texte sauvegardé: {filepath}")
 
-# === DATASET POUR LE TEST ===
 class HybridMammographyDataset(torch.utils.data.Dataset):
     def __init__(self, annotations_df, image_dir, label_map):
         self.image_dir = image_dir
@@ -68,7 +64,6 @@ class HybridMammographyDataset(torch.utils.data.Dataset):
         try:
             image = read_dicom(image_path)
             image = preprocess_image(image, laterality=row["laterality"])
-            # Gestion des dimensions
             if len(image.shape) == 3:
                 image = image[:, :, 0]
             elif len(image.shape) > 3:
@@ -82,16 +77,13 @@ class HybridMammographyDataset(torch.utils.data.Dataset):
             label = row['label']
             return image, hist, label
         except Exception as e:
-            print(f"Erreur lors du chargement de {image_path}: {e}")
+            print(f"Erreur de chargement pour {image_path}: {e}")
             return torch.randn(1, 224, 224), torch.randn(256), 0
 
-# === CHARGEMENT DES DONNÉES ===
 df = pd.read_csv(ANNOTATIONS_CSV)
 df_test = df[df['split'] == 'test'].reset_index(drop=True)
 test_dataset = HybridMammographyDataset(df_test, IMAGE_ROOT, CLASS_MAP)
 test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
-
-# === CHARGEMENT DU MODÈLE ===
 
 model = HybridMammographyClassifier(
     backbone='cnn',
@@ -106,7 +98,6 @@ model.load_finetuned_weights(BEST_WEIGHTS_PATH, device=DEVICE)
 model.to(DEVICE)
 model.eval()
 
-# === ÉVALUATION ===
 all_preds = []
 all_labels = []
 
@@ -119,18 +110,16 @@ with torch.no_grad():
         preds = torch.argmax(outputs, dim=1)
         all_preds.append(preds.cpu().numpy())
         all_labels.append(labels.cpu().numpy())
-print ("=== Résultats sur le set de test ===")
-print("la taille d'une sortie du modele est :", outputs.shape)
+
+print("--- Résultats du test ---")
+print("Dimension de la sortie :", outputs.shape)
 all_preds = np.concatenate(all_preds)
 all_labels = np.concatenate(all_labels)
 
-# Rapport de classification
 report = classification_report(all_labels, all_preds, target_names=CLASS_NAMES)
-print("=== Résultats sur le set de test ===")
 print(report)
 save_text_report(report, "hybrid_model_cnn_classification_report.txt")
 
-# Matrice de confusion
 cm = confusion_matrix(all_labels, all_preds)
 print("Matrice de confusion :")
 print(cm)
