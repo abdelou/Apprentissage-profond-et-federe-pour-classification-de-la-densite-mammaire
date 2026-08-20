@@ -1,11 +1,4 @@
-"""
-Combine les probabilites d'Approche 2 (ResNet50, fine-tuning direct, vues
-MLO) et d'Approche 6 - variante siamoise (EfficientNet-B0, CC+MLO), par
-fusion tardive (moyenne des probabilites), en alignant les deux jeux par
-cle (study_id + laterality) plutot que par position -- les deux scripts de
-dump construisent leurs jeux de donnees differemment (un par image, un par
-paire), donc l'ordre des lignes n'est pas garanti identique.
-"""
+# Script : combine_ensemble_a2_a6siam.py
 import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix
 
@@ -19,13 +12,13 @@ probs_a6 = np.load("hybrid 2 branches siamese efficientnet/ensemble_probs_a6siam
 labels_a6 = np.load("hybrid 2 branches siamese efficientnet/ensemble_labels_a6siam.npy")
 keys_a6 = np.load("hybrid 2 branches siamese efficientnet/ensemble_keys_a6siam.npy", allow_pickle=True)
 
-print(f"[INFO] Approche 2 : {len(keys_a2)} images -- Approche 6 siamoise : {len(keys_a6)} paires")
+print(f"Approche 2 : {len(keys_a2)} images -- Approche 6 siamoise : {len(keys_a6)} paires")
 
 # Alignement par cle (study_id_laterality), commune aux deux
 index_a2 = {k: i for i, k in enumerate(keys_a2)}
 index_a6 = {k: i for i, k in enumerate(keys_a6)}
 common_keys = sorted(set(index_a2.keys()) & set(index_a6.keys()))
-print(f"[INFO] {len(common_keys)} seins communs aux deux jeux (intersection des cles)")
+print(f"{len(common_keys)} seins communs aux deux jeux (intersection des cles)")
 
 idx_a2 = [index_a2[k] for k in common_keys]
 idx_a6 = [index_a6[k] for k in common_keys]
@@ -40,9 +33,9 @@ labels_true = labels_a2_aligned
 print(f"[VERIF] {len(labels_true)} labels compares apres alignement, coherence OK")
 
 for name, probs in [("Approche 2 seule", probs_a2_aligned), ("Approche 6 siamoise seule", probs_a6_aligned)]:
-    preds = probs.argmax(axis=1)
-    print(f"\n=== {name} (sur l'intersection, verification) ===")
-    print(classification_report(labels_true, preds, target_names=CLASS_NAMES, zero_division=0))
+  preds = probs.argmax(axis=1)
+  print(f"\n=== {name} (sur l'intersection, verification) ===")
+  print(classification_report(labels_true, preds, target_names=CLASS_NAMES, zero_division=0))
 
 probs_ensemble = (probs_a2_aligned + probs_a6_aligned) / 2.0
 preds_ensemble = probs_ensemble.argmax(axis=1)

@@ -40,35 +40,35 @@ output_root = "/vindr-mammo-a-large-scale-benchmark-dataset-for-computer-aided-d
 compte = defaultdict(lambda: defaultdict(int))
 
 for split in ["train", "test"]:
-    for density in ["density_A", "density_B", "density_C", "density_D"]:
-        split_density_dir = os.path.join(output_root, split, density)
-        if not os.path.exists(split_density_dir):
-            continue
-        # Parcours tous les sous-dossiers (study_id)
-        for study_id in os.listdir(split_density_dir):
-            study_dir = os.path.join(split_density_dir, study_id)
-            if not os.path.isdir(study_dir):
-                continue
-            # Compte les fichiers .dicom dans ce dossier
-            for fname in os.listdir(study_dir):
-                if fname.endswith(".dicom"):
-                    compte[density][split] += 1
+  for density in ["density_A", "density_B", "density_C", "density_D"]:
+    split_density_dir = os.path.join(output_root, split, density)
+    if not os.path.exists(split_density_dir):
+      continue
+    # Parcours tous les sous-dossiers (study_id)
+    for study_id in os.listdir(split_density_dir):
+      study_dir = os.path.join(split_density_dir, study_id)
+      if not os.path.isdir(study_dir):
+        continue
+      # Compte les fichiers .dicom dans ce dossier
+      for fname in os.listdir(study_dir):
+        if fname.endswith(".dicom"):
+          compte[density][split] += 1
 
 # Affichage des résultats
-print("Densité    |  Train   |  Test")
+print("Densité  | Train  | Test")
 print("-------------------------------")
 for density in ["density_A", "density_B", "density_C", "density_D"]:
-    n_train = compte[density]["train"]
-    n_test = compte[density]["test"]
-    print(f"{density:10} | {n_train:7} | {n_test:5}")
+  n_train = compte[density]["train"]
+  n_test = compte[density]["test"]
+  print(f"{density:10} | {n_train:7} | {n_test:5}")
 # %%
 import timm
 print(timm.list_models())
 # %%
 import timm
 for el in timm.list_models():
-    if 'pvt' in el:
-        print(el)
+  if 'pvt' in el:
+    print(el)
 # %%
 from itertools import combinations
 print(list(combinations(range(4), 2)))

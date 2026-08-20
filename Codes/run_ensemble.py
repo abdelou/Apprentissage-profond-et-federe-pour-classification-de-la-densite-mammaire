@@ -1,14 +1,4 @@
-"""
-Ensemble (vote souple / fusion tardive) entre deux modeles deja entraines
-independamment :
-    - Approche 3 : ResNet50 + Histogramme, vues MLO (85% Test Acc, 0% recall A)
-    - Approche 2 : ResNet50 fine-tuning direct (74% Test Acc, 95% recall A)
-
-On moyenne leurs probabilites softmax sur le meme sous-ensemble d'images
-(vues MLO du test, 2000 images -- Approche 3 ne fonctionne que sur cette
-vue), puis on evalue le resultat combine. Aucun reentrainement : les deux
-modeles sont charges tels quels depuis leurs checkpoints existants.
-"""
+# Script : run_ensemble.py
 import sys
 import os
 
@@ -43,36 +33,36 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 df = pd.read_csv(CONFIG_A3["ANNOTATIONS_CSV"])
 df_test_mlo = df[df["view_position"] == "MLO"]
 df_test_mlo = df_test_mlo[df_test_mlo["split"] == "test"].reset_index(drop=True)
-print(f"[INFO] {len(df_test_mlo)} images de test (vues MLO)")
+print(f"{len(df_test_mlo)} images de test (vues MLO)")
 
 # ============================================================
 # Modele Approche 3 : ResNet50 + Histogramme (MLO)
 # ============================================================
-print("[INFO] Chargement Approche 3 (ResNet50 + Histogramme, MLO)...")
+print("Chargement Approche 3 (ResNet50 + Histogramme, MLO)...")
 model_a3 = HybridMammographyClassifier(
-    backbone="cnn", input_channels=1, image_feature_dim=512,
-    hist_hidden_dims=[128, 64], num_classes=4, dropout=0.3, pretrained=False,
+  backbone="cnn", input_channels=1, image_feature_dim=512,
+  hist_hidden_dims=[128, 64], num_classes=4, dropout=0.3, pretrained=False,
 )
 model_a3.load_state_dict(torch.load(A3_WEIGHTS, map_location=device))
 model_a3.to(device)
 model_a3.eval()
 
 dataset_a3 = HybridMammographyDataset(
-    df_test_mlo, VINDR_ROOT, label_map=CONFIG_A3["CLASS_MAP"], use_augmentation=False, split="test",
+  df_test_mlo, VINDR_ROOT, label_map=CONFIG_A3["CLASS_MAP"], use_augmentation=False, split="test",
 )
 loader_a3 = DataLoader(dataset_a3, batch_size=16, shuffle=False, num_workers=0)
 
 # ============================================================
 # Modele Approche 2 : ResNet50 fine-tuning direct
 # ============================================================
-print("[INFO] Chargement Approche 2 (ResNet50 fine-tuning)...")
+print("Chargement Approche 2 (ResNet50 fine-tuning)...")
 model_a2 = FineTunedFeatureExtractor("resnet", num_classes=4, pretrained=False)
 model_a2.load_finetuned_weights(A2_WEIGHTS, device)
 model_a2.to(device)
 model_a2.eval()
 
 dataset_a2 = MammographyDataset(
-    df_test_mlo, CONFIG_A2["IMAGE_ROOT"], split="test", use_augmentation=False, label_map=CONFIG_A2["CLASS_MAP"],
+  df_test_mlo, CONFIG_A2["IMAGE_ROOT"], split="test", use_augmentation=False, label_map=CONFIG_A2["CLASS_MAP"],
 )
 loader_a2 = DataLoader(dataset_a2, batch_size=16, shuffle=False, num_workers=0)
 
@@ -81,24 +71,24 @@ assert len(dataset_a3) == len(dataset_a2), "Les deux jeux de test ne sont pas al
 # ============================================================
 # Inference des deux modeles + moyenne des probabilites
 # ============================================================
-print("[INFO] Inference Approche 3...")
+print("Inference Approche 3...")
 probs_a3, labels_a3 = [], []
 with torch.no_grad():
-    for images, hists, labels in loader_a3:
-        images, hists = images.to(device), hists.to(device)
-        outputs = model_a3(images, hists)
-        probs_a3.append(F.softmax(outputs, dim=1).cpu().numpy())
-        labels_a3.extend(labels.numpy().tolist())
+  for images, hists, labels in loader_a3:
+    images, hists = images.to(device), hists.to(device)
+    outputs = model_a3(images, hists)
+    probs_a3.append(F.softmax(outputs, dim=1).cpu().numpy())
+    labels_a3.extend(labels.numpy().tolist())
 probs_a3 = np.concatenate(probs_a3, axis=0)
 
-print("[INFO] Inference Approche 2...")
+print("Inference Approche 2...")
 probs_a2, labels_a2 = [], []
 with torch.no_grad():
-    for images, labels in loader_a2:
-        images = images.to(device)
-        outputs = model_a2(images)
-        probs_a2.append(F.softmax(outputs, dim=1).cpu().numpy())
-        labels_a2.extend(labels.numpy().tolist())
+  for images, labels in loader_a2:
+    images = images.to(device)
+    outputs = model_a2(images)
+    probs_a2.append(F.softmax(outputs, dim=1).cpu().numpy())
+    labels_a2.extend(labels.numpy().tolist())
 probs_a2 = np.concatenate(probs_a2, axis=0)
 
 assert labels_a3 == labels_a2, "Les labels des deux jeux de test ne correspondent pas -- desalignement !"
@@ -110,9 +100,9 @@ print(f"\n[VERIF] {len(labels_true)} labels compares, alignement OK")
 # Evaluation individuelle (verification) + ensemble (moyenne simple)
 # ============================================================
 for name, probs in [("Approche 3 seule", probs_a3), ("Approche 2 seule", probs_a2)]:
-    preds = probs.argmax(axis=1)
-    print(f"\n=== {name} (verification, doit matcher les resultats deja connus) ===")
-    print(classification_report(labels_true, preds, target_names=CLASS_NAMES, zero_division=0))
+  preds = probs.argmax(axis=1)
+  print(f"\n=== {name} (verification, doit matcher les resultats deja connus) ===")
+  print(classification_report(labels_true, preds, target_names=CLASS_NAMES, zero_division=0))
 
 probs_ensemble = (probs_a3 + probs_a2) / 2.0
 preds_ensemble = probs_ensemble.argmax(axis=1)

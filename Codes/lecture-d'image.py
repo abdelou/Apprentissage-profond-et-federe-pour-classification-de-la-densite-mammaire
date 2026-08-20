@@ -17,20 +17,20 @@ image = read_dicom(path)
 image = preprocess_image(image, laterality=laterality)
 #%%ds = pydicom.dcmread(path)
 img = ds.pixel_array.astype(np.float32)
-    
-    # Gestion de la photométrie DICOM
+  
+  # Gestion de la photométrie DICOM
 photometric_interpretation = getattr(ds, 'PhotometricInterpretation', 'MONOCHROME2')
-    
-    # Inversion si nécessaire pour avoir un fond noir cohérent
+  
+  # Inversion si nécessaire pour avoir un fond noir cohérent
 if photometric_interpretation == 'MONOCHROME1':
-        # Fond blanc -> Fond noir (inversion)
-    img = ds.BitsAllocated - img - 1
-    print(f"[DICOM] Image inversée (MONOCHROME1): {path}")
+    # Fond blanc -> Fond noir (inversion)
+  img = ds.BitsAllocated - img - 1
+  print(f"Image inversée (MONOCHROME1): {path}")
 elif photometric_interpretation == 'MONOCHROME2':
-        # Déjà en fond noir, pas d'inversion nécessaire
-    print(f"[DICOM] Image normale (MONOCHROME2): {path}")
+    # Déjà en fond noir, pas d'inversion nécessaire
+  print(f"Image normale (MONOCHROME2): {path}")
 else:
-    print(f"[DICOM] Photométrie inconnue: {photometric_interpretation}")
+  print(f"Photométrie inconnue: {photometric_interpretation}")
 # Afficher toutes les métadonnées
 #print(ds)
 
@@ -45,12 +45,12 @@ plt.show()
 #%%
 #img = cv2.resize(img, (224, 224)
 img_norm = normalize_intensity_global(img)
-img_pil = Image.fromarray(img_norm).convert("L")  # "L" = niveaux de gris ; mettre "RGB" si color
+img_pil = Image.fromarray(img_norm).convert("L") # "L" = niveaux de gris ; mettre "RGB" si color
 
 # Appliquer les augmentations
 augmentations = transforms.Compose([
-    transforms.RandomRotation(degrees=2),
-    transforms.ColorJitter(brightness=0.1, contrast=0.1),
+  transforms.RandomRotation(degrees=2),
+  transforms.ColorJitter(brightness=0.1, contrast=0.1),
 ])
 img_np = augmentations(img_pil)
 img_np = np.array(img_np) / 255.0
@@ -63,10 +63,10 @@ plt.show()
 img = ds.pixel_array
 
 # Définir le nombre de pixels à rogner sur chaque bord
-crop_top = 50      # nombre de pixels à couper en haut
-crop_bottom = 50   # en bas
-crop_left = 10     # à gauche
-crop_right = 700    # à droite
+crop_top = 50   # nombre de pixels à couper en haut
+crop_bottom = 50  # en bas
+crop_left = 10   # à gauche
+crop_right = 700  # à droite
 img = img - np.min(img)
 img = img / (np.max(img) + 1e-8)
 img = (img * 255).astype(np.uint8)

@@ -1,8 +1,4 @@
-"""
-Combine les probabilites deja calculees separement par dump_probs_approche2.py
-et dump_probs_approche3.py (moyenne simple), et evalue le resultat. Script
-leger, pas de modele charge ici, juste de l'arithmetique + evaluation.
-"""
+# Script : combine_ensemble.py
 import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix
 
@@ -20,9 +16,9 @@ print(f"[VERIF] {len(labels_a2)} labels compares, alignement OK")
 labels_true = labels_a2
 
 for name, probs in [("Approche 3 seule", probs_a3), ("Approche 2 seule", probs_a2)]:
-    preds = probs.argmax(axis=1)
-    print(f"\n=== {name} (verification) ===")
-    print(classification_report(labels_true, preds, target_names=CLASS_NAMES, zero_division=0))
+  preds = probs.argmax(axis=1)
+  print(f"\n=== {name} (verification) ===")
+  print(classification_report(labels_true, preds, target_names=CLASS_NAMES, zero_division=0))
 
 probs_ensemble = (probs_a2 + probs_a3) / 2.0
 preds_ensemble = probs_ensemble.argmax(axis=1)

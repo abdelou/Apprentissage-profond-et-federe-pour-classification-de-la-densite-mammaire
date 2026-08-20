@@ -1,9 +1,4 @@
-"""
-Evalue le checkpoint deja entraine sur son split de VALIDATION (meme split
-que celui utilise pendant l'entrainement, seed=42), sans reentrainer.
-Sert a obtenir la matrice de confusion + rapport de classification sur
-validation pour la figure entrainement.png.
-"""
+# Script : eval_val_report.py
 import sys
 import pandas as pd
 import numpy as np
@@ -30,12 +25,12 @@ val_indices = np.random.choice(train_indices, size=val_size, replace=False)
 train_df.loc[val_indices, 'temp_split'] = 'validation'
 
 val_dataset = HybridGLCMDataset(
-    train_df[train_df['temp_split'] == 'validation'], VINDR_ROOT, view_position=view_position,
-    use_augmentation=False, split='training'
+  train_df[train_df['temp_split'] == 'validation'], VINDR_ROOT, view_position=view_position,
+  use_augmentation=False, split='training'
 )
 val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=4)
 
-print(f"[INFO] {len(val_dataset)} images de validation ({view_position}, {backbone})")
+print(f"{len(val_dataset)} images de validation ({view_position}, {backbone})")
 
 model = HybridGLCMClassifier(backbone=backbone, num_classes=4, dropout=0.3)
 model.load_state_dict(torch.load(weights_path, map_location=device))
@@ -44,12 +39,12 @@ model.eval()
 
 all_preds, all_labels = [], []
 with torch.no_grad():
-    for images, labels in val_loader:
-        images = images.to(device)
-        outputs = model(images)
-        preds = outputs.argmax(dim=1).cpu().numpy()
-        all_preds.extend(preds)
-        all_labels.extend(labels.numpy())
+  for images, labels in val_loader:
+    images = images.to(device)
+    outputs = model(images)
+    preds = outputs.argmax(dim=1).cpu().numpy()
+    all_preds.extend(preds)
+    all_labels.extend(labels.numpy())
 
 print(f"\n ACCURACY VALIDATION ({view_position}, {backbone}): {accuracy_score(all_labels, all_preds)*100:.2f}%")
 print("\nMatrice de confusion (validation):")

@@ -41,16 +41,16 @@ GRAPHES_DIR = "graphes"
 os.makedirs(GRAPHES_DIR, exist_ok=True)
 
 def save_plot(plt, filename, graphes_dir=GRAPHES_DIR):
-    filepath = os.path.join(graphes_dir, filename)
-    plt.savefig(filepath, dpi=300, bbox_inches='tight')
-    print(f"[INFO] Graphique sauvegardé: {filepath}")
-    plt.close()
+  filepath = os.path.join(graphes_dir, filename)
+  plt.savefig(filepath, dpi=300, bbox_inches='tight')
+  print(f"Graphique sauvegardé: {filepath}")
+  plt.close()
 
 def save_text_report(report, filename, graphes_dir=GRAPHES_DIR):
-    filepath = os.path.join(graphes_dir, filename)
-    with open(filepath, 'w') as f:
-        f.write(report)
-    print(f"[INFO] Rapport texte sauvegardé: {filepath}")
+  filepath = os.path.join(graphes_dir, filename)
+  with open(filepath, 'w') as f:
+    f.write(report)
+  print(f"Rapport texte sauvegardé: {filepath}")
 
 # === CHARGEMENT DES DONNÉES ===
 # Réutilise HybridMammographyDataset (hybrid_finetuning.py), qui apparie correctement
@@ -61,8 +61,8 @@ def save_text_report(report, filename, graphes_dir=GRAPHES_DIR):
 df = pd.read_csv(ANNOTATIONS_CSV)
 df_test = df[df['split'] == 'test'].reset_index(drop=True)
 test_dataset = HybridMammographyDataset(
-    df_test, IMAGE_ROOT_CC, IMAGE_ROOT_MLO,
-    label_map=CLASS_MAP, use_augmentation=False, split='test'
+  df_test, IMAGE_ROOT_CC, IMAGE_ROOT_MLO,
+  label_map=CLASS_MAP, use_augmentation=False, split='test'
 )
 test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
@@ -73,13 +73,13 @@ RESNET50_WEIGHTS_PATH = "featuresfinetuned_weights/resnet50_image_branch_best.pt
 REXNET150_WEIGHTS_PATH = "featuresfinetuned_weights/rexnet_150_image_branch_best.pth"
 
 model = HybridMammographyClassifier(
-    input_channels=1,
-    image_feature_dim=512,
-    num_classes=4,
-    dropout=0.3,
-    pretrained=False,
-    resnet50_weights=RESNET50_WEIGHTS_PATH,
-    rexnet150_weights=REXNET150_WEIGHTS_PATH
+  input_channels=1,
+  image_feature_dim=512,
+  num_classes=4,
+  dropout=0.3,
+  pretrained=False,
+  resnet50_weights=RESNET50_WEIGHTS_PATH,
+  rexnet150_weights=REXNET150_WEIGHTS_PATH
 )
 model.load_finetuned_weights(BEST_WEIGHTS_PATH, device=DEVICE)
 model.to(DEVICE)
@@ -90,14 +90,14 @@ all_preds = []
 all_labels = []
 
 with torch.no_grad():
-    for mlo_images, cc_images, labels in test_loader:
-        mlo_images = mlo_images.to(DEVICE)
-        cc_images = cc_images.to(DEVICE)
-        labels = labels.to(DEVICE)
-        outputs = model(mlo_images, cc_images)
-        preds = torch.argmax(outputs, dim=1)
-        all_preds.append(preds.cpu().numpy())
-        all_labels.append(labels.cpu().numpy())
+  for mlo_images, cc_images, labels in test_loader:
+    mlo_images = mlo_images.to(DEVICE)
+    cc_images = cc_images.to(DEVICE)
+    labels = labels.to(DEVICE)
+    outputs = model(mlo_images, cc_images)
+    preds = torch.argmax(outputs, dim=1)
+    all_preds.append(preds.cpu().numpy())
+    all_labels.append(labels.cpu().numpy())
 print("=== Résultats sur le set de test ===")
 print("la taille d'une sortie du modele est :", outputs.shape)
 all_preds = np.concatenate(all_preds)
